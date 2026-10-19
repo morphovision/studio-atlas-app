@@ -552,12 +552,19 @@ function renderJobs() {
     const active = j.status === "running" || j.status === "queued";
     return `<div class="job"><header><b>${esc(j.label || j.kind)}</b>
       ${active ? `<button class="ghost" data-cancel="${j.id}" ${j.cancel_requested ? "disabled" : ""}>${j.cancel_requested ? "Cancelando…" : "Cancelar"}</button>` : ""}
-      ${label ? `<span class="st">${label}</span>` : ""}</header>
+      ${label ? `<span class="st">${label}</span>` : ""}
+      ${active ? "" : `<button class="ghost job-del" data-del-job="${j.id}" title="Borrar tarea" aria-label="Borrar tarea">×</button>`}</header>
       <div class="prog"><i style="width:${pct}%"></i></div>
       <div class="st">${j.done || 0}/${j.total || "?"} pasos · ${(j.found || 0).toLocaleString("es-ES")} resultados${el ? " · " + t : ""}${j.phase ? " · " + esc(j.phase) : ""}
         ${j.run_url ? ` · <a href="${esc(j.run_url)}" target="_blank" rel="noopener">registro</a>` : ""}</div>
       <pre>${esc((j.logs || []).slice(-10).join("\n"))}</pre></div>`;
   }).join("") : `<p class="hint">No hay tareas todavía.</p>`;
+  $$("[data-del-job]").forEach((b) => b.onclick = async () => {
+    must(await sb.from("jobs").delete().eq("id", b.dataset.delJob));
+    state.jobs = state.jobs.filter((x) => x.id !== b.dataset.delJob);
+    renderJobs();
+  });
+  $("#jobs-clear").hidden = !js.some((j) => !["running", "queued"].includes(j.status));
   $$("[data-cancel]").forEach((b) => b.onclick = async () => {
     b.textContent = "Cancelando…"; b.disabled = true;
     const j = state.jobs.find((x) => x.id === b.dataset.cancel);
@@ -565,8 +572,19 @@ function renderJobs() {
     must(await sb.from("jobs").update(upd).eq("id", b.dataset.cancel));
   });
 }
+$("#jobs-clear").onclick = async () => {
+  const n = state.jobs.filter((j) => !["running", "queued"].includes(j.status)).length;
+  if (!n || !confirm(`¿Borrar ${n} tareas terminadas, canceladas o con error? Las que están en marcha se quedan.`)) return;
+  must(await sb.from("jobs").delete().in("status", ["done", "error", "cancelled"]));
+  loadJobs(); toast("Tareas borradas");
+};
 function subscribeJobs() {
   sb.channel("jobs").on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, (p) => {
+    if (p.eventType === "DELETE") {
+      state.jobs = state.jobs.filter((x) => x.id !== p.old?.id);
+      if (state.view === "search") renderJobs();
+      return;
+    }
     const row = p.new;
     if (!row || !row.id) return;
     const i = state.jobs.findIndex((x) => x.id === row.id);
