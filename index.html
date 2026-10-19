@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
 <link rel="stylesheet" href="style.css">
+<script>try { const t = localStorage.getItem("atlas-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
 <body>
 <!-- LOGIN -->
@@ -46,6 +47,7 @@
     <button data-view="mail"><span class="ico">✉</span><span>Correo</span></button>
   </nav>
   <div class="kpis" id="kpis"></div>
+  <button class="ghost theme-btn" id="theme-toggle" title="Tema: automático">◐</button>
   <button class="ghost filters-toggle" id="filters-toggle">Filtros</button>
 </header>
 
@@ -110,6 +112,11 @@
   <section class="view" id="view-map">
     <div id="map"></div>
     <div class="map-note" id="map-note"></div>
+    <aside class="map-list" id="map-list" hidden>
+      <header><b id="ml-title"></b><button id="ml-zoom">Acercar</button><button class="ghost close" id="ml-close" aria-label="Cerrar">×</button></header>
+      <div class="sum" id="ml-sum"></div>
+      <ul id="ml-items"></ul>
+    </aside>
     <div class="legend" id="legend"></div>
   </section>
 

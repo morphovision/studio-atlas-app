@@ -356,19 +356,24 @@ let map, cluster, mapReq = 0;
 function initMap() {
   if (map) return;
   map = L.map("map", { worldCopyJump: true, minZoom: 2, zoomControl: !mobile() }).setView([30, 5], 2);
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19, className: dark ? "tiles-dark" : "tiles-light",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19,
   }).addTo(map);
   cluster = L.markerClusterGroup({
-    showCoverageOnHover: false, maxClusterRadius: 45, chunkedLoading: true,
+    showCoverageOnHover: false, maxClusterRadius: 45, chunkedLoading: true, zoomToBoundsOnClick: false,
     iconCreateFunction: (cl) => {
-      const n = cl.getChildCount();
-      const size = n < 10 ? 26 : n < 100 ? 32 : n < 1000 ? 40 : 48;
-      return L.divIcon({ html: `<div class="cl" style="width:${size}px;height:${size}px">${n}</div>`, className: "", iconSize: [size, size] });
+      const kids = cl.getAllChildMarkers();
+      const n = kids.length;
+      const sent = kids.filter((m) => CONTACTED.has(m.options.atlas.st)).length;
+      const p = Math.round((sent / n) * 100);
+      const size = n < 10 ? 30 : n < 100 ? 36 : n < 1000 ? 44 : 52;
+      return L.divIcon({ className: "", iconSize: [size, size],
+        html: `<div class="clw ${sent === n ? "all" : ""}" style="--p:${p}%;width:${size}px;height:${size}px" title="${sent} de ${n} contactadas"><div class="cl">${n}</div></div>` });
     },
   });
+  cluster.on("clusterclick", (e) => showClusterList(e.layer));
   map.addLayer(cluster);
+  map.on("click", () => ($("#map-list").hidden = true));
   $("#legend").innerHTML = Object.entries(STATUS_LABEL).map(([k, v]) => `<span>${dot("s", k)} ${v}</span>`).join("");
 }
 async function loadMap() {
@@ -382,7 +387,7 @@ async function loadMap() {
   const icons = {};
   const iconFor = (st, dead) => icons[st + dead] ||= L.divIcon({ className: "", html: `<div class="pin" style="background:${colors[st]};opacity:${dead ? .35 : 1}"></div>`, iconSize: [12, 12] });
   const markers = data.rows.map(([id, name, lat, lon, cat, st, alive, fit]) => {
-    const m = L.marker([lat, lon], { icon: iconFor(st, alive === "inactiva") });
+    const m = L.marker([lat, lon], { icon: iconFor(st, alive === "inactiva"), atlas: { id, name, cat, st, alive, fit } });
     m.on("click", () => openDrawer(id));
     if (!mobile()) m.bindTooltip(`${esc(name)} · ${CAT_SHORT[cat] || ""} · ${fit}`, { direction: "top", offset: [0, -6] });
     return m;
@@ -399,6 +404,47 @@ async function loadMap() {
     : `${data.rows.length.toLocaleString("es-ES")} empresas`;
   setTimeout(() => map.invalidateSize(), 50);
 }
+
+// what is inside a cluster: tap a circle to see its companies
+const CONTACTED = new Set(["enviado", "sin_respuesta", "respondido"]);
+let mlLayer = null;
+function showClusterList(layer) {
+  mlLayer = layer;
+  const items = layer.getAllChildMarkers().map((m) => m.options.atlas).sort((a, b) => b.fit - a.fit);
+  const sent = items.filter((x) => CONTACTED.has(x.st)).length;
+  $("#ml-title").textContent = `${items.length.toLocaleString("es-ES")} empresas aquí`;
+  $("#ml-sum").innerHTML = `${dot("s", "enviado")} ${sent} contactadas · ${items.length - sent} sin contactar`;
+  const shown = items.slice(0, 300);
+  $("#ml-items").innerHTML = shown.map((x) => `<li data-id="${x.id}">${dot("s", x.st)}<b>${esc(x.name)}</b><span class="num">${x.fit}</span>
+      <span class="sub">${esc(CAT_SHORT[x.cat] || "")} · ${STATUS_LABEL[x.st] || ""}${x.alive === "inactiva" ? " · inactiva" : ""}</span></li>`).join("")
+    + (items.length > shown.length ? `<li class="sub">… y ${items.length - shown.length} más. Pulsa «Acercar» para verlas en el mapa.</li>` : "");
+  $("#map-list").hidden = false;
+}
+$("#ml-items").onclick = (e) => { const li = e.target.closest("li[data-id]"); if (li) openDrawer(+li.dataset.id); };
+$("#ml-close").onclick = () => ($("#map-list").hidden = true);
+$("#ml-zoom").onclick = () => { if (mlLayer) mlLayer.zoomToBounds({ padding: [30, 30] }); $("#map-list").hidden = true; };
+
+// ------------------------------------------------------------------ theme (auto → light → dark)
+const ICO = (d) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const THEMES = [
+  ["", ICO('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>'), "Tema: automático"],
+  ["light", ICO('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'), "Tema: claro"],
+  ["dark", ICO('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'), "Tema: oscuro"],
+];
+function applyTheme(t) {
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  try { t ? localStorage.setItem("atlas-theme", t) : localStorage.removeItem("atlas-theme"); } catch (e) {}
+  const [, icon, label] = THEMES.find((x) => x[0] === t) || THEMES[0];
+  $("#theme-toggle").innerHTML = icon; $("#theme-toggle").title = label; $("#theme-toggle").setAttribute("aria-label", label);
+  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = css("--bg") || "#111111";
+  if (map && state.view === "map") loadMap();
+}
+$("#theme-toggle").onclick = () => {
+  const cur = document.documentElement.dataset.theme || "";
+  const next = THEMES[(THEMES.findIndex((x) => x[0] === cur) + 1) % THEMES.length][0];
+  applyTheme(next); toast(THEMES.find((x) => x[0] === next)[2]);
+};
+applyTheme(document.documentElement.dataset.theme || "");
 
 // ------------------------------------------------------------------ views
 function show(view) {

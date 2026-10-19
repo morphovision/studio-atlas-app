@@ -7,9 +7,9 @@
   --soft: #efefeb;
   --accent: #2f4bff;
   --s-por_contactar: #9a9a94;
-  --s-enviado: #2f4bff;
+  --s-enviado: #13a05f;
   --s-sin_respuesta: #e08a00;
-  --s-respondido: #13a05f;
+  --s-respondido: #2f4bff;
   --s-descartado: #c9c9c3;
   --s-no_contactar: #d4363a;
   --a-activa: #13a05f;
@@ -17,14 +17,23 @@
   --a-inactiva: #d4363a;
   --a-sin_comprobar: #c9c9c3;
   --mono: "JetBrains Mono", ui-monospace, monospace;
+  --tile-filter: grayscale(1) contrast(.9) brightness(1.06);
   color-scheme: light;
 }
+/* dark: follows the system unless you pick a theme with the ◐ button */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0f0f0e; --panel: #171716; --ink: #ededea; --muted: #8b8b86; --line: #2a2a28; --soft: #1f1f1d;
-    --accent: #7d8cff; --s-enviado: #7d8cff; --s-descartado: #4a4a46; --a-sin_comprobar: #4a4a46; --s-por_contactar: #6d6d68;
+    --accent: #7d8cff; --s-enviado: #3ecf8e; --s-respondido: #7d8cff; --s-descartado: #4a4a46; --a-sin_comprobar: #4a4a46;
+    --s-por_contactar: #6d6d68; --tile-filter: grayscale(1) invert(1) contrast(.85) brightness(.9);
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f0e; --panel: #171716; --ink: #ededea; --muted: #8b8b86; --line: #2a2a28; --soft: #1f1f1d;
+  --accent: #7d8cff; --s-enviado: #3ecf8e; --s-respondido: #7d8cff; --s-descartado: #4a4a46; --a-sin_comprobar: #4a4a46;
+  --s-por_contactar: #6d6d68; --tile-filter: grayscale(1) invert(1) contrast(.85) brightness(.9);
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -100,9 +109,29 @@ tbody tr.sel { background: var(--soft); }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--ink); border-radius: 8px; box-shadow: 0 2px 16px rgba(0,0,0,.12); }
 .leaflet-popup-content { font: 13px/1.4 "Inter Tight", sans-serif; margin: 10px 12px; }
 .leaflet-popup-content button { margin-top: 8px; }
-.cl { border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; font: 500 11px var(--mono); box-shadow: 0 0 0 5px rgba(127,127,127,.22); }
-.tiles-light { filter: grayscale(1) contrast(.9) brightness(1.06); }
-.tiles-dark { filter: grayscale(1) invert(1) contrast(.85) brightness(.9); }
+.leaflet-tile-pane { filter: var(--tile-filter); }
+.clw { border-radius: 50%; display: grid; place-items: center; padding: 4px; cursor: pointer;
+       background: conic-gradient(var(--s-enviado) 0 var(--p), rgba(127,127,127,.28) var(--p) 100%); }
+.cl { width: 100%; height: 100%; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; font: 500 11px var(--mono); }
+.clw.all .cl { background: var(--s-enviado); color: #fff; }
+/* list of companies inside a cluster */
+.map-list { position: absolute; top: 56px; right: 14px; bottom: 18px; width: min(340px, calc(100% - 28px)); z-index: 600;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column;
+            box-shadow: 0 8px 30px rgba(0,0,0,.12); }
+.map-list[hidden] { display: none !important; }
+.map-list header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.map-list header b { margin-right: auto; }
+.map-list header .close { font-size: 20px; padding: 0 8px; }
+.map-list .sum { padding: 6px 12px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); }
+.map-list ul { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; }
+.map-list li { display: grid; grid-template-columns: 10px 1fr auto; gap: 2px 10px; align-items: center; padding: 9px 12px;
+               border-bottom: 1px solid var(--line); cursor: pointer; }
+.map-list li:hover { background: var(--soft); }
+.map-list li .dot { grid-row: span 2; }
+.map-list li b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-list li .num { grid-row: span 2; }
+.map-list li .sub { grid-column: 2; }
+.theme-btn { font-size: 16px; padding: 4px 10px; }
 .pin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--panel); box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
 
 /* panels */
@@ -217,6 +246,7 @@ h3 { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacin
   .drawer .scores { grid-template-columns: repeat(2, 1fr); }
   .legend { bottom: 12px; font-size: 11px; }
   .map-note { left: 12px; right: 12px; top: 10px; max-width: none; }
+  .map-list { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 58%; border-radius: 14px 14px 0 0; }
   #tpl { min-height: 260px; }
 }
 #appshell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
