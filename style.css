@@ -222,3 +222,34 @@ h3 { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacin
 #appshell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 #appshell > main { flex: 1; min-height: 0; position: relative; }
 @media (max-width: 760px) { #appshell { height: calc(100dvh - 64px - env(safe-area-inset-bottom)); } #appshell > main { height: auto; } }
+
+/* ---------- list toolbar ---------- */
+.listbar { display: flex; gap: 8px; align-items: center; padding: 8px 20px; border-bottom: 1px solid var(--line); }
+.listbar .hint { margin-right: auto; font-family: var(--mono); font-size: 12px; }
+
+/* ---------- quick viewer ---------- */
+.viewer { position: fixed; top: 0; bottom: 0; left: 0; right: min(460px, 100vw); z-index: 990; background: var(--bg);
+          display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+.viewer[hidden] { display: none !important; }
+.vbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.vtitle { display: flex; flex-direction: column; min-width: 0; margin-right: auto; }
+.vtitle b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vbar .tabs { margin: 0; }
+.vbar .tabs button.off { opacity: .35; pointer-events: none; }
+#v-close { font-size: 22px; padding: 2px 10px; }
+.vbody { flex: 1; position: relative; min-height: 0; background: #fff; }
+.vbody iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+.vshot { position: absolute; inset: 0; overflow: auto; background: var(--soft); text-align: center; padding: 16px; }
+.vshot img { max-width: 100%; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.vempty { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; background: var(--bg); }
+.vactions { display: flex; gap: 8px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--panel); }
+.vactions button { flex: 1; justify-content: center; }
+.vactions #v-prev { flex: 0 0 auto; }
+@media (max-width: 760px) {
+  .viewer { right: 0; z-index: 1100; padding-top: env(safe-area-inset-top); }
+  .vbar { flex-wrap: wrap; }
+  .vbar .tabs { order: 3; width: 100%; }
+  .listbar { padding: 8px 16px; flex-wrap: wrap; }
+  .vactions { gap: 6px; }
+  .vactions button { padding: 10px 6px; font-size: 13px; white-space: nowrap; }
+}

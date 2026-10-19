@@ -85,6 +85,11 @@
       <button data-bulk="favorite">★</button>
       <button data-bulk="delete" class="danger">Eliminar</button>
     </div>
+    <div class="listbar">
+      <span id="list-count" class="hint"></span>
+      <button id="review-start">Revisar una a una</button>
+      <button id="delete-inactive" class="danger">Eliminar inactivas</button>
+    </div>
     <div class="tablewrap">
       <table id="table">
         <thead><tr>
@@ -193,6 +198,32 @@
   </section>
 </main>
 </div>
+
+<section class="viewer" id="viewer" hidden>
+  <div class="vbar">
+    <div class="vtitle"><b id="v-name"></b><span id="v-pos" class="sub"></span></div>
+    <div class="tabs" id="v-tabs">
+      <button data-v="web">Web</button>
+      <button data-v="ig">Instagram</button>
+      <button data-v="shot">Captura</button>
+    </div>
+    <a id="v-open" class="btn" target="_blank" rel="noopener">Abrir fuera ↗</a>
+    <button class="ghost" id="v-close" aria-label="Cerrar vista">×</button>
+  </div>
+  <div class="vbody">
+    <iframe id="v-frame" title="Vista de la empresa" referrerpolicy="no-referrer"
+      sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms"></iframe>
+    <div id="v-shot" class="vshot" hidden><img id="v-img" alt="Captura de la web"><p class="hint" id="v-shot-note"></p></div>
+    <div id="v-empty" class="vempty hint" hidden></div>
+  </div>
+  <div class="vactions">
+    <button id="v-prev" title="Anterior (←)">←</button>
+    <button id="v-alive" title="Marcar activa (A)">✓ Activa</button>
+    <button id="v-dead" title="Marcar inactiva (I)">✗ Inactiva</button>
+    <button id="v-del" class="danger" title="Eliminar (Supr)">Eliminar</button>
+    <button id="v-next" class="primary" title="Siguiente (→)">Siguiente</button>
+  </div>
+</section>
 
 <aside class="drawer" id="drawer" aria-hidden="true">
   <button class="close" id="drawer-close" aria-label="Cerrar">×</button>

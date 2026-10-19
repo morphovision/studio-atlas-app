@@ -110,6 +110,7 @@ function renderList() {
     </tr>`).join("");
   $("#empty").hidden = state.total > 0;
   $("#count").textContent = state.total ? `${state.items.length} de ${state.total.toLocaleString("es-ES")}` : "";
+  $("#list-count").textContent = `${state.total.toLocaleString("es-ES")} empresas con este filtro`;
   $("#load-more").hidden = state.items.length >= state.total;
   updateBulk();
 }
@@ -189,6 +190,10 @@ async function openDrawer(id) {
     <h2>${esc(c.name)}</h2>
     <div class="meta">${esc(CAT_SHORT[c.category] || "")} · ${esc([c.city, countryName(c.country_code, c.country)].filter(Boolean).join(", ") || "Ubicación desconocida")}
       ${c.address ? `<br>${esc(c.address)}` : ""}</div>
+    <div class="row">
+      ${c.website ? `<button class="primary" data-view-open="web">Ver web aquí</button>` : ""}
+      ${c.instagram ? `<button data-view-open="ig">Ver Instagram aquí</button>` : ""}
+    </div>
     <div class="links">${links.map(([l, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${l} ↗</a>`).join("")}</div>
     ${c.description ? `<p class="desc">${esc(c.description)}</p>` : ""}
     <div>${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
@@ -215,6 +220,9 @@ async function openDrawer(id) {
     <div class="row"><button id="d-preview">Vista previa</button><button id="d-send" class="primary">Enviar</button><button id="d-verify">Verificar</button><button id="d-del" class="danger">Eliminar</button></div>
     <div id="d-prev"></div>`;
   $("#drawer").classList.add("on"); $("#drawer").setAttribute("aria-hidden", "false");
+  state.current = c;
+  $$("[data-view-open]").forEach((b) => b.onclick = () => openViewer(c, b.dataset.viewOpen));
+  if (!$("#viewer").hidden) openViewer(c, viewerTab(c));
   const save = async (fields) => { must(await sb.from("companies").update(fields).eq("id", id)); loadList(true); loadStats(); };
   $("#d-status").onchange = (e) => save({ status: e.target.value }).then(() => toast("Estado guardado"));
   $("#d-notes").onblur = (e) => save({ notes: e.target.value });
@@ -236,7 +244,112 @@ async function openDrawer(id) {
 }
 function closeDrawer() { $("#drawer").classList.remove("on"); $("#drawer").setAttribute("aria-hidden", "true"); }
 $("#drawer-close").onclick = closeDrawer;
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { if (!$("#viewer").hidden) closeViewer(); else closeDrawer(); }
+});
+
+// ------------------------------------------------------------------ quick viewer (check a studio without leaving)
+const igHandle = (u) => { const m = (u || "").match(/instagram\.com\/([A-Za-z0-9._]{2,30})/); return m ? m[1] : null; };
+const shotUrl = (u) => `https://s0.wp.com/mshots/v1/${encodeURIComponent(u)}?w=1280&h=960`;
+const shotFallback = (u) => `https://image.thum.io/get/width/1280/crop/960/${u}`;
+function viewerTab(c) { return c.website ? (c.frameable === false ? "shot" : "web") : (c.instagram ? "ig" : "web"); }
+
+function openViewer(c, tab) {
+  state.vc = c;
+  const v = $("#viewer");
+  v.hidden = false;
+  $("#v-name").textContent = c.name;
+  const i = state.items.findIndex((x) => x.id === c.id);
+  $("#v-pos").textContent = i >= 0 ? `${i + 1} de ${state.total.toLocaleString("es-ES")} · ${[c.city, countryName(c.country_code, c.country)].filter(Boolean).join(", ")}` : "";
+  $$("#v-tabs button").forEach((b) => {
+    const ok = b.dataset.v === "ig" ? !!igHandle(c.instagram) : !!c.website;
+    b.classList.toggle("off", !ok);
+    b.classList.toggle("on", b.dataset.v === tab);
+  });
+  showViewerTab(tab);
+}
+function showViewerTab(tab) {
+  const c = state.vc, frame = $("#v-frame"), shot = $("#v-shot"), empty = $("#v-empty");
+  $$("#v-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.v === tab));
+  frame.hidden = shot.hidden = empty.hidden = true;
+  frame.removeAttribute("src");
+  if (tab === "ig") {
+    const h = igHandle(c.instagram);
+    if (!h) return showEmpty("Esta empresa no tiene Instagram guardado.");
+    frame.hidden = false;
+    frame.src = `https://www.instagram.com/${h}/embed/`;
+    $("#v-open").href = `https://www.instagram.com/${h}/`;
+    return;
+  }
+  if (!c.website) return showEmpty("Esta empresa no tiene web guardada.");
+  $("#v-open").href = c.website;
+  if (tab === "shot" || c.frameable === false) {
+    shot.hidden = false;
+    const img = $("#v-img");
+    img.onerror = () => { if (!img.src.includes("thum.io")) img.src = shotFallback(c.website); };
+    img.src = shotUrl(c.website);
+    $("#v-shot-note").textContent = c.frameable === false
+      ? "Esta web no se deja mostrar dentro de otra página, así que ves una captura. Si sale «generando», pulsa Captura otra vez en unos segundos."
+      : "Captura reciente de la web. Si sale «generando», pulsa Captura otra vez en unos segundos.";
+    return;
+  }
+  frame.hidden = false;
+  frame.src = c.website;
+}
+function showEmpty(msg) { $("#v-empty").hidden = false; $("#v-empty").textContent = msg; }
+function closeViewer() { $("#viewer").hidden = true; $("#v-frame").removeAttribute("src"); }
+$("#v-close").onclick = closeViewer;
+$("#v-tabs").onclick = (e) => { const b = e.target.closest("button"); if (b && !b.classList.contains("off")) showViewerTab(b.dataset.v); };
+
+async function stepViewer(dir) {
+  let i = state.items.findIndex((x) => x.id === state.vc?.id) + dir;
+  if (i >= state.items.length && state.items.length < state.total) await loadList(false);
+  if (i < 0 || i >= state.items.length) return toast(dir > 0 ? "No hay más con este filtro" : "Es la primera");
+  openDrawer(state.items[i].id);   // the drawer refreshes the open viewer with the full record
+}
+async function markViewer(fields, msg) {
+  const c = state.vc; if (!c) return;
+  must(await sb.from("companies").update(fields).eq("id", c.id));
+  const it = state.items.find((x) => x.id === c.id); if (it) Object.assign(it, fields);
+  renderList(); loadStats(); toast(msg);
+  stepViewer(1);
+}
+$("#v-prev").onclick = () => stepViewer(-1);
+$("#v-next").onclick = () => stepViewer(1);
+$("#v-alive").onclick = () => markViewer({ alive_status: "activa", alive_notes: "Revisada a mano: activa" }, "Marcada como activa");
+$("#v-dead").onclick = () => markViewer({ alive_status: "inactiva", alive_notes: "Revisada a mano: inactiva" }, "Marcada como inactiva");
+$("#v-del").onclick = async () => {
+  const c = state.vc; if (!c) return;
+  const i = state.items.findIndex((x) => x.id === c.id);
+  must(await sb.from("companies").delete().eq("id", c.id));
+  state.items.splice(i, 1); state.total -= 1; renderList(); loadStats();
+  toast(`${c.name} eliminada`);
+  const next = state.items[i];
+  if (next) openDrawer(next.id); else { closeViewer(); closeDrawer(); }
+};
+document.addEventListener("keydown", (e) => {
+  if ($("#viewer").hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+  if (e.key === "ArrowRight") $("#v-next").click();
+  else if (e.key === "ArrowLeft") $("#v-prev").click();
+  else if (e.key.toLowerCase() === "a") $("#v-alive").click();
+  else if (e.key.toLowerCase() === "i") $("#v-dead").click();
+  else if (e.key === "Delete") $("#v-del").click();
+});
+$("#review-start").onclick = () => {
+  const c = state.items[0];
+  if (!c) return toast("No hay empresas con este filtro");
+  openDrawer(c.id); openViewer(c, viewerTab(c));
+};
+$("#delete-inactive").onclick = async () => {
+  const f = { ...currentFilters(), alive_status: "inactiva" };
+  delete f.sort;
+  const n = must(await sb.rpc("atlas_companies", { f, lim: 1, off: 0 })).total;
+  if (!n) return toast("No hay inactivas con este filtro");
+  if (!confirm(`¿Eliminar ${n.toLocaleString("es-ES")} empresas inactivas${Object.keys(f).length > 1 ? " (con el filtro actual)" : ""}? Quedan apuntadas como descartadas y no volverán en búsquedas futuras.`)) return;
+  const d = must(await sb.rpc("atlas_delete", { f }));
+  toast(`${d.toLocaleString("es-ES")} empresas eliminadas`);
+  loadList(true); loadStats();
+};
 
 // ------------------------------------------------------------------ map
 let map, cluster, mapReq = 0;
