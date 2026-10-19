@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Studio Atlas</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- LOGIN -->
+<section id="login" class="login" hidden>
+  <div class="login-card">
+    <img src="icon.svg" width="44" height="44" alt="">
+    <h1>Studio Atlas</h1>
+    <p class="hint">Escribe tu email y te llegará un enlace para entrar. Solo tú tienes acceso a los datos.</p>
+    <form id="login-form">
+      <input type="email" id="login-email" placeholder="tu@email.com" required autocomplete="email">
+      <button class="primary">Enviarme el enlace</button>
+    </form>
+    <form id="code-form" hidden>
+      <p class="hint">Abre el enlace del correo en este dispositivo. Si el correo trae un código de 6 cifras, también puedes escribirlo aquí:</p>
+      <input id="login-code" inputmode="numeric" maxlength="10" placeholder="Código">
+      <button>Entrar con código</button>
+    </form>
+    <p class="hint" id="login-msg"></p>
+  </div>
+</section>
+
+<div id="appshell" hidden>
+<header class="top">
+  <div class="brand">Studio&nbsp;Atlas</div>
+  <nav id="nav">
+    <button data-view="list" class="on"><span class="ico">☰</span><span>Empresas</span></button>
+    <button data-view="map"><span class="ico">◍</span><span>Mapa</span></button>
+    <button data-view="search"><span class="ico">⌕</span><span>Buscar</span></button>
+    <button data-view="mail"><span class="ico">✉</span><span>Correo</span></button>
+  </nav>
+  <div class="kpis" id="kpis"></div>
+  <button class="ghost filters-toggle" id="filters-toggle">Filtros</button>
+</header>
+
+<section class="filters" id="filters">
+  <input id="f-q" type="search" placeholder="Buscar nombre, ciudad, web, etiqueta…">
+  <select id="f-country"><option value="">Todos los países</option></select>
+  <select id="f-category"><option value="">Todos los tipos</option></select>
+  <select id="f-status"><option value="">Cualquier estado</option></select>
+  <select id="f-alive">
+    <option value="">Cualquier actividad</option>
+    <option value="activa">Activa</option>
+    <option value="dudosa">Dudosa</option>
+    <option value="inactiva">Inactiva</option>
+    <option value="sin_comprobar">Sin comprobar</option>
+  </select>
+  <label class="chk"><input type="checkbox" id="f-email"> Con email</label>
+  <label class="chk"><input type="checkbox" id="f-freelance"> Acepta freelance</label>
+  <label class="chk"><input type="checkbox" id="f-fav"> Favoritas</label>
+  <select id="f-sort">
+    <option value="fit">Orden: encaje</option>
+    <option value="freelance">Orden: freelance</option>
+    <option value="name">Orden: nombre</option>
+    <option value="country">Orden: país</option>
+    <option value="recent">Orden: recientes</option>
+    <option value="status">Orden: estado</option>
+  </select>
+</section>
+
+<main>
+  <section class="view on" id="view-list">
+    <div class="bulkbar" id="bulkbar">
+      <span id="sel-count">0 seleccionadas</span>
+      <button data-bulk="verify">Verificar</button>
+      <button data-bulk="send">Enviar correo</button>
+      <button data-bulk="followup">Seguimiento</button>
+      <select id="bulk-status"><option value="">Cambiar estado…</option></select>
+      <button data-bulk="favorite">★</button>
+      <button data-bulk="delete" class="danger">Eliminar</button>
+    </div>
+    <div class="tablewrap">
+      <table id="table">
+        <thead><tr>
+          <th class="c-sel"><input type="checkbox" id="sel-all"></th>
+          <th>Empresa</th><th>Lugar</th><th>Tipo</th><th class="num">Encaje</th>
+          <th class="num">Freelance</th><th>Actividad</th><th>Estado</th><th>Último envío</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>
+        <p>Aún no hay empresas.</p>
+        <button class="primary" data-goto="search">Empezar a buscar</button>
+      </div>
+      <div class="more"><span id="count"></span> <button id="load-more">Cargar más</button></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-map">
+    <div id="map"></div>
+    <div class="map-note" id="map-note"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="view pad" id="view-search">
+    <div class="cols">
+      <div class="col">
+        <h2>Buscar empresas</h2>
+        <p class="hint">Las búsquedas corren en la nube: puedes cerrar la app y volver luego. Overture trae un país en un minuto; la búsqueda web e Instagram son lentas pero encuentran boutiques pequeñas.</p>
+        <h3>Fuentes</h3>
+        <div class="chips" id="src-chips">
+          <label><input type="checkbox" value="overture" checked> Overture <small>rápido · con web y email</small></label>
+          <label><input type="checkbox" value="wikidata" checked> Wikidata <small>estudios conocidos</small></label>
+          <label><input type="checkbox" value="osm"> OpenStreetMap <small>direcciones exactas</small></label>
+          <label><input type="checkbox" value="web"> Búsqueda web <small>lento · boutiques</small></label>
+          <label><input type="checkbox" value="instagram"> Instagram <small>lento · sin web</small></label>
+        </div>
+        <h3>Tipos</h3>
+        <div class="chips" id="cat-chips"></div>
+        <h3>Dónde</h3>
+        <div class="chips" id="region-chips"></div>
+        <input id="countries" placeholder="Códigos de país separados por coma (ES, GB, US…). Vacío = todo el mundo">
+        <label class="chk"><input type="checkbox" id="opt-verify" checked> Al terminar, verificar las <input id="verify-n" type="number" value="500" min="0" step="100" style="width:80px"> con mejor encaje</label>
+        <label class="chk"><input type="checkbox" id="opt-deep"> Búsqueda web profunda</label>
+        <label class="chk"><input type="checkbox" id="opt-force"> Repetir búsquedas web ya hechas</label>
+        <div class="row">
+          <button class="primary" id="start-search">Buscar</button>
+          <button id="verify-pending">Verificar más (filtro actual)</button>
+        </div>
+        <p class="hint" id="storage-hint"></p>
+        <h3>Añadir a mano</h3>
+        <form id="add-form" class="addform">
+          <input name="name" placeholder="Nombre" required>
+          <input name="website" placeholder="Web">
+          <input name="emails" placeholder="Emails (coma)">
+          <input name="instagram" placeholder="Instagram URL">
+          <input name="city" placeholder="Ciudad">
+          <input name="country_code" placeholder="País (ES)" maxlength="2">
+          <button>Añadir</button>
+        </form>
+        <h3>Importar / exportar</h3>
+        <div class="row">
+          <label class="filebtn">Importar CSV<input type="file" id="import" accept=".csv"></label>
+          <button id="export">Exportar CSV (filtro actual)</button>
+        </div>
+      </div>
+      <div class="col">
+        <h2>Tareas</h2>
+        <div id="jobs"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view pad" id="view-mail">
+    <div class="cols">
+      <div class="col">
+        <h2>Gmail</h2>
+        <div id="gmail-status" class="card"></div>
+        <div class="row">
+          <button class="primary" id="gmail-sync">Sincronizar ahora</button>
+        </div>
+        <p class="hint">Cada mañana se sincroniza solo. Marca cada empresa como <b>enviado</b>, <b>sin respuesta</b> (pasados los días de seguimiento) o <b>respondido</b>. Nunca envía nada sin que tú lo pidas.</p>
+        <h3>Ajustes</h3>
+        <div class="grid2">
+          <label>Tu nombre<input id="s-my_name"></label>
+          <label>Tu web<input id="s-my_web"></label>
+          <label>Límite diario<input id="s-daily_limit" type="number" min="1" max="200"></label>
+          <label>Días hasta «sin respuesta»<input id="s-follow_up_days" type="number" min="1" max="60"></label>
+          <label>Pausa mínima (s)<input id="s-delay_min" type="number" min="5"></label>
+          <label>Pausa máxima (s)<input id="s-delay_max" type="number" min="5"></label>
+        </div>
+        <div class="row"><button id="logout" class="ghost">Cerrar sesión</button></div>
+      </div>
+      <div class="col wide">
+        <h2>Plantillas</h2>
+        <p class="hint">Primera línea <code>Asunto:</code> / <code>Subject:</code>. Variables: <code>{empresa}</code> <code>{ciudad}</code> <code>{pais}</code> <code>{tipo}</code> <code>{mi_nombre}</code> <code>{mi_web}</code> <code>{web_empresa}</code>. Español para España y Latinoamérica, inglés para el resto.</p>
+        <div class="tabs" id="tpl-tabs">
+          <button data-tpl="template_es" class="on">Primer correo · ES</button>
+          <button data-tpl="template_en">Primer correo · EN</button>
+          <button data-tpl="followup_es">Seguimiento · ES</button>
+          <button data-tpl="followup_en">Seguimiento · EN</button>
+        </div>
+        <textarea id="tpl" spellcheck="false"></textarea>
+        <div class="row"><button class="primary" id="save-mail">Guardar</button><span id="saved" class="hint"></span></div>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
+
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <button class="close" id="drawer-close" aria-label="Cerrar">×</button>
+  <div id="drawer-body"></div>
+</aside>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
