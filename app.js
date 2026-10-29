@@ -398,7 +398,7 @@ $("#delete-inactive").onclick = async () => {
 const TIER_LABEL = { semilla: "Referencia", confirmado: "Confirmado", auto: "Verificado auto", revisar: "Revisar", descartado: "Descartado", descartado_manual: "Descartado" };
 const CGI_TERMS = ["cgi studio", "3d studio", "creative studio cgi", "design and direction studio", "houdini studio", "cgi design studio",
   "vfx studio", "3d design studio", "cgi agency", "visual studio 3d", "cgi music video", "creative studio", "motion and cgi studio", "cgi production studio"];
-const DEFAULT_SEEDS = ["sideeye.mov", "onesal_studio", "loop_creative_studio", "tendril", "someform.studio", "bureauklausalman",
+const DEFAULT_SEEDS = ["sideeye.mov", "onesal_studio", "loop_creative_studio", "studiotendril", "someform.studio", "bureauklausalman",
   "notreal.tv", "fluentstudio", "zunc.studio", "erase_studio_", "here.creative"];
 const fmtNum = (n) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(".0", "") + "M" : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(".0", "") + "k" : String(n);
 const ago = (d) => { if (!d) return "—"; const days = Math.round((Date.now() - new Date(d)) / 864e5); return days <= 0 ? "hoy" : days < 31 ? `hace ${days} d` : days < 365 ? `hace ${Math.round(days / 30)} m` : `hace ${Math.round(days / 365)} a`; };
