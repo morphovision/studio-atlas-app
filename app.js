@@ -26,7 +26,8 @@ const CATEGORY_WORDS = {
 };
 const REGION_NAMES = (() => { try { return new Intl.DisplayNames(["es"], { type: "region" }); } catch { return null; } })();
 const countryName = (cc, fallback) => { try { return (cc && REGION_NAMES && REGION_NAMES.of(cc)) || fallback || cc || ""; } catch { return fallback || cc || ""; } };
-const state = { items: [], total: 0, offset: 0, sel: new Set(), settings: {}, tpl: "template_es", view: "list", jobs: [] };
+const state = { items: [], total: 0, offset: 0, sel: new Set(), settings: {}, tpl: "template_es", view: "cgi", jobs: [],
+  cgi: { items: [], total: 0, offset: 0, sel: new Set() }, vsrc: "list" };
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const dot = (kind, v) => `<span class="dot" style="background:var(--${kind}-${v})"></span>`;
 const fmtDate = (s) => s ? new Date(s).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "2-digit" }) : "—";
@@ -76,6 +77,7 @@ function currentFilters() {
     q: $("#f-q").value.trim(), country_code: $("#f-country").value, category: $("#f-category").value,
     status: $("#f-status").value, alive_status: $("#f-alive").value, sort: $("#f-sort").value,
     has_email: $("#f-email").checked ? "1" : "", freelance: $("#f-freelance").checked ? "1" : "", favorite: $("#f-fav").checked ? "1" : "",
+    segment: $("#f-segment").value,
   };
   return Object.fromEntries(Object.entries(f).filter(([, v]) => v !== "" && v != null));
 }
@@ -195,6 +197,7 @@ async function openDrawer(id) {
       ${c.instagram ? `<button data-view-open="ig">Ver Instagram aquí</button>` : ""}
     </div>
     <div class="links">${links.map(([l, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${l} ↗</a>`).join("")}</div>
+    ${c.segment === "cgi" ? cgiEvidenceHtml(c) : ""}
     ${c.description ? `<p class="desc">${esc(c.description)}</p>` : ""}
     <div>${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
     <div class="scores">
@@ -221,7 +224,12 @@ async function openDrawer(id) {
     <div id="d-prev"></div>`;
   $("#drawer").classList.add("on"); $("#drawer").setAttribute("aria-hidden", "false");
   state.current = c;
-  $$("[data-view-open]").forEach((b) => b.onclick = () => openViewer(c, b.dataset.viewOpen));
+  $$("[data-tier-set]").forEach((b) => b.onclick = async () => {
+    must(await sb.from("companies").update({ cgi_tier: b.dataset.tierSet }).eq("id", c.id));
+    toast(b.dataset.tierSet === "confirmado" ? "Confirmado como estudio CGI" : "Descartado");
+    loadCgi(true); loadCgiStats(); openDrawer(c.id);
+  });
+  $$("[data-view-open]").forEach((b) => b.onclick = () => { setViewerMode(c.segment === "cgi" && state.view === "cgi" ? "cgi" : "list"); openViewer(c, b.dataset.viewOpen); });
   if (!$("#viewer").hidden) openViewer(c, viewerTab(c));
   const save = async (fields) => { must(await sb.from("companies").update(fields).eq("id", id)); loadList(true); loadStats(); };
   $("#d-status").onchange = (e) => save({ status: e.target.value }).then(() => toast("Estado guardado"));
@@ -252,15 +260,29 @@ document.addEventListener("keydown", (e) => {
 const igHandle = (u) => { const m = (u || "").match(/instagram\.com\/([A-Za-z0-9._]{2,30})/); return m ? m[1] : null; };
 const shotUrl = (u) => `https://s0.wp.com/mshots/v1/${encodeURIComponent(u)}?w=1280&h=960`;
 const shotFallback = (u) => `https://image.thum.io/get/width/1280/crop/960/${u}`;
-function viewerTab(c) { return c.website ? (c.frameable === false ? "shot" : "web") : (c.instagram ? "ig" : "web"); }
+function viewerTab(c) {
+  if (state.vsrc === "cgi" && c.instagram) return "ig";
+  return c.website ? (c.frameable === false ? "shot" : "web") : (c.instagram ? "ig" : "web");
+}
+const vlist = () => (state.vsrc === "cgi" ? state.cgi : state);
+function setViewerMode(src) {
+  state.vsrc = src;
+  const cgi = src === "cgi";
+  $("#v-alive").textContent = cgi ? "✓ Confirmar" : "✓ Activa";
+  $("#v-alive").title = cgi ? "Es un estudio CGI como los que busco (A)" : "Marcar activa (A)";
+  $("#v-dead").textContent = cgi ? "✗ Descartar" : "✗ Inactiva";
+  $("#v-dead").title = cgi ? "No encaja (I)" : "Marcar inactiva (I)";
+}
 
 function openViewer(c, tab) {
   state.vc = c;
   const v = $("#viewer");
   v.hidden = false;
   $("#v-name").textContent = c.name;
-  const i = state.items.findIndex((x) => x.id === c.id);
-  $("#v-pos").textContent = i >= 0 ? `${i + 1} de ${state.total.toLocaleString("es-ES")} · ${[c.city, countryName(c.country_code, c.country)].filter(Boolean).join(", ")}` : "";
+  const L = vlist();
+  const i = L.items.findIndex((x) => x.id === c.id);
+  const extra = c.ig_followers != null ? ` · ${fmtNum(c.ig_followers)} seguidores · ${c.cgi_score ?? 0} pts` : "";
+  $("#v-pos").textContent = (i >= 0 ? `${i + 1} de ${L.total.toLocaleString("es-ES")} · ` : "") + [c.city, countryName(c.country_code, c.country)].filter(Boolean).join(", ") + extra;
   $$("#v-tabs button").forEach((b) => {
     const ok = b.dataset.v === "ig" ? !!igHandle(c.instagram) : !!c.website;
     b.classList.toggle("off", !ok);
@@ -301,30 +323,50 @@ function closeViewer() { $("#viewer").hidden = true; $("#v-frame").removeAttribu
 $("#v-close").onclick = closeViewer;
 $("#v-tabs").onclick = (e) => { const b = e.target.closest("button"); if (b && !b.classList.contains("off")) showViewerTab(b.dataset.v); };
 
-async function stepViewer(dir) {
-  let i = state.items.findIndex((x) => x.id === state.vc?.id) + dir;
-  if (i >= state.items.length && state.items.length < state.total) await loadList(false);
-  if (i < 0 || i >= state.items.length) return toast(dir > 0 ? "No hay más con este filtro" : "Es la primera");
-  openDrawer(state.items[i].id);   // the drawer refreshes the open viewer with the full record
+async function stepViewer(dir, fromIndex) {
+  const L = vlist();
+  let i = (fromIndex ?? L.items.findIndex((x) => x.id === state.vc?.id)) + dir;
+  if (i >= L.items.length && L.items.length < L.total) await (state.vsrc === "cgi" ? loadCgi(false) : loadList(false));
+  if (i < 0 || i >= L.items.length) {
+    if (state.vsrc === "cgi" && !L.items.length) { closeViewer(); closeDrawer(); return toast("Revisión terminada: no quedan estudios con este filtro"); }
+    return toast(dir > 0 ? "No hay más con este filtro" : "Es la primera");
+  }
+  openDrawer(L.items[i].id);   // the drawer refreshes the open viewer with the full record
 }
 async function markViewer(fields, msg) {
   const c = state.vc; if (!c) return;
   must(await sb.from("companies").update(fields).eq("id", c.id));
-  const it = state.items.find((x) => x.id === c.id); if (it) Object.assign(it, fields);
-  renderList(); loadStats(); toast(msg);
+  const L = vlist();
+  const i = L.items.findIndex((x) => x.id === c.id);
+  if (i >= 0) Object.assign(L.items[i], fields);
+  toast(msg);
+  if (state.vsrc === "cgi") {
+    // in review mode the item leaves the current list (e.g. "Para revisar"), so continue from the same position
+    const stillIn = cgiFilters().cgi_tier.split(",").includes(fields.cgi_tier);
+    if (!stillIn && i >= 0) { L.items.splice(i, 1); L.total -= 1; renderCgi(); loadCgiStats(); return stepViewer(0, i); }
+    renderCgi(); loadCgiStats(); return stepViewer(1);
+  }
+  renderList(); loadStats();
   stepViewer(1);
 }
 $("#v-prev").onclick = () => stepViewer(-1);
 $("#v-next").onclick = () => stepViewer(1);
-$("#v-alive").onclick = () => markViewer({ alive_status: "activa", alive_notes: "Revisada a mano: activa" }, "Marcada como activa");
-$("#v-dead").onclick = () => markViewer({ alive_status: "inactiva", alive_notes: "Revisada a mano: inactiva" }, "Marcada como inactiva");
+$("#v-alive").onclick = () => state.vsrc === "cgi"
+  ? markViewer({ cgi_tier: "confirmado" }, "Confirmado como estudio CGI")
+  : markViewer({ alive_status: "activa", alive_notes: "Revisada a mano: activa" }, "Marcada como activa");
+$("#v-dead").onclick = () => state.vsrc === "cgi"
+  ? markViewer({ cgi_tier: "descartado_manual" }, "Descartado")
+  : markViewer({ alive_status: "inactiva", alive_notes: "Revisada a mano: inactiva" }, "Marcada como inactiva");
 $("#v-del").onclick = async () => {
   const c = state.vc; if (!c) return;
-  const i = state.items.findIndex((x) => x.id === c.id);
+  const L = vlist();
+  const i = L.items.findIndex((x) => x.id === c.id);
   must(await sb.from("companies").delete().eq("id", c.id));
-  state.items.splice(i, 1); state.total -= 1; renderList(); loadStats();
+  if (i >= 0) { L.items.splice(i, 1); L.total -= 1; }
+  state.vsrc === "cgi" ? (renderCgi(), loadCgiStats()) : renderList();
+  loadStats();
   toast(`${c.name} eliminada`);
-  const next = state.items[i];
+  const next = L.items[i];
   if (next) openDrawer(next.id); else { closeViewer(); closeDrawer(); }
 };
 document.addEventListener("keydown", (e) => {
@@ -336,6 +378,7 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "Delete") $("#v-del").click();
 });
 $("#review-start").onclick = () => {
+  setViewerMode("list");
   const c = state.items[0];
   if (!c) return toast("No hay empresas con este filtro");
   openDrawer(c.id); openViewer(c, viewerTab(c));
@@ -349,6 +392,169 @@ $("#delete-inactive").onclick = async () => {
   const d = must(await sb.rpc("atlas_delete", { f }));
   toast(`${d.toLocaleString("es-ES")} empresas eliminadas`);
   loadList(true); loadStats();
+};
+
+// ------------------------------------------------------------------ Estudios CGI
+const TIER_LABEL = { semilla: "Referencia", confirmado: "Confirmado", auto: "Verificado auto", revisar: "Revisar", descartado: "Descartado", descartado_manual: "Descartado" };
+const CGI_TERMS = ["cgi studio", "3d studio", "creative studio cgi", "design and direction studio", "houdini studio", "cgi design studio",
+  "vfx studio", "3d design studio", "cgi agency", "visual studio 3d", "cgi music video", "creative studio", "motion and cgi studio", "cgi production studio"];
+const DEFAULT_SEEDS = ["sideeye.mov", "onesal_studio", "looop.studio", "tendril.studio", "someform.studio", "bureauklausalman",
+  "notreal.tv", "fluentstudio", "zunc.studio", "erasestudio", "here.creative"];
+const fmtNum = (n) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(".0", "") + "M" : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(".0", "") + "k" : String(n);
+const ago = (d) => { if (!d) return "—"; const days = Math.round((Date.now() - new Date(d)) / 864e5); return days <= 0 ? "hoy" : days < 31 ? `hace ${days} d` : days < 365 ? `hace ${Math.round(days / 30)} m` : `hace ${Math.round(days / 365)} a`; };
+
+function cgiFilters() {
+  const f = { segment: "cgi", cgi_tier: $("#c-tier").value, q: $("#c-q").value.trim(), country_code: $("#c-country").value,
+    min_followers: $("#c-followers").value, status: $("#c-status").value, sort: $("#c-sort").value };
+  return Object.fromEntries(Object.entries(f).filter(([, v]) => v !== "" && v != null));
+}
+async function loadCgi(reset) {
+  const C = state.cgi;
+  if (reset) { C.offset = 0; C.items = []; }
+  const data = must(await sb.rpc("atlas_companies", { f: cgiFilters(), lim: 60, off: C.offset }));
+  C.total = data.total; C.items = C.items.concat(data.items); C.offset += data.items.length;
+  renderCgi();
+}
+function cgiCard(c) {
+  const ev = c.cgi_evidence || {};
+  const chips = (ev.cgi || []).slice(0, 5).map((t) => `<span class="tag">${esc(t)}</span>`).join("")
+    + (ev.clients || []).slice(0, 3).map((t) => `<span class="tag client">${esc(t)}</span>`).join("")
+    + (ev.neg || []).slice(0, 2).map((t) => `<span class="tag neg">${esc(t)}</span>`).join("");
+  const initial = esc((c.name || c.ig_username || "?").trim()[0]?.toUpperCase() || "?");
+  const pic = c.ig_pic ? `<img src="${esc(c.ig_pic)}" alt="" referrerpolicy="no-referrer" loading="lazy" onerror="this.remove()">` : "";
+  const where = [c.city, countryName(c.country_code, c.country)].filter(Boolean).join(", ");
+  const sel = state.cgi.sel.has(c.id);
+  return `<article class="cgi-card ${sel ? "sel" : ""}" data-cid="${c.id}">
+    <input type="checkbox" class="csel" data-csel="${c.id}" ${sel ? "checked" : ""} aria-label="Seleccionar">
+    <div class="cc-top"><div class="avatar">${initial}${pic}</div>
+      <div class="cc-name"><b>${esc(c.name)}</b><span class="sub">@${esc(c.ig_username || "")}${where ? " · " + esc(where) : ""}</span></div>
+      <div class="ring" style="--s:${c.cgi_score || 0}" title="Puntuación CGI"><span>${c.cgi_score ?? 0}</span></div></div>
+    <div class="cc-stats"><span><b>${fmtNum(c.ig_followers)}</b> seguidores</span><span><b>${fmtNum(c.ig_posts)}</b> posts</span><span>${ago(c.ig_last_post)}</span>${c.emails.length ? "<span>✉</span>" : ""}</div>
+    <div class="cc-chips">${chips}</div>
+    <div class="cc-foot"><span class="tier ${esc(c.cgi_tier || "")}">${TIER_LABEL[c.cgi_tier] || "—"}</span>
+      <span class="pill" title="${STATUS_LABEL[c.status] || ""}">${dot("s", c.status)}<span class="st-txt">${STATUS_LABEL[c.status] || ""}</span></span><span class="grow"></span>
+      <button data-cig="${c.id}" title="Ver su Instagram aquí">Instagram</button>
+      ${["semilla", "confirmado"].includes(c.cgi_tier) ? "" : `<button data-ctier="confirmado" data-id="${c.id}" title="Confirmar">✓</button>`}
+      ${["descartado", "descartado_manual"].includes(c.cgi_tier) ? "" : `<button data-ctier="descartado_manual" data-id="${c.id}" title="Descartar">✗</button>`}
+    </div></article>`;
+}
+function renderCgi() {
+  const C = state.cgi;
+  $("#cgi-grid").innerHTML = C.items.map(cgiCard).join("");
+  $("#c-empty").hidden = C.total > 0;
+  $("#c-empty-msg").textContent = $("#c-tier").value === "revisar" ? "No hay estudios pendientes de revisar." : "Aún no hay estudios con este filtro.";
+  $("#c-count").textContent = C.total ? `${C.items.length} de ${C.total.toLocaleString("es-ES")}` : "";
+  $("#c-more").hidden = C.items.length >= C.total;
+  $("#c-bulkbar").classList.toggle("on", C.sel.size > 0);
+  $("#c-sel-count").textContent = `${C.sel.size} seleccionados`;
+}
+async function loadCgiStats() {
+  const s = must(await sb.rpc("atlas_cgi_stats"));
+  const t = s.tiers || {};
+  const mine = (t.semilla || 0) + (t.confirmado || 0);
+  $("#cgi-kpis").innerHTML = `<div><b>${mine}</b><span>Confirmados</span></div><div><b>${t.auto || 0}</b><span>Verificados auto</span></div>
+    <div><b>${t.revisar || 0}</b><span>Para revisar</span></div><div><b>${s.with_email || 0}</b><span>Con email</span></div><div><b>${s.contacted || 0}</b><span>Contactados</span></div>`;
+  const cur = $("#c-country").value;
+  $("#c-country").innerHTML = `<option value="">Todo el mundo</option>` + (s.countries || []).map((c) => `<option value="${c.country_code}">${esc(countryName(c.country_code))} (${c.n})</option>`).join("");
+  $("#c-country").value = cur;
+  state.cgiStats = s;
+  renderCgiPanelInfo();
+}
+["#c-tier", "#c-country", "#c-followers", "#c-status", "#c-sort"].forEach((id) => $(id).addEventListener("change", () => loadCgi(true)));
+let cTimer; $("#c-q").addEventListener("input", () => { clearTimeout(cTimer); cTimer = setTimeout(() => loadCgi(true), 250); });
+$("#c-more").onclick = () => loadCgi(false);
+$("#cgi-grid").addEventListener("click", async (e) => {
+  const sel = e.target.closest("[data-csel]");
+  if (sel) { const id = +sel.dataset.csel; sel.checked ? state.cgi.sel.add(id) : state.cgi.sel.delete(id); return renderCgi(); }
+  const ig = e.target.closest("[data-cig]");
+  if (ig) { const c = state.cgi.items.find((x) => x.id === +ig.dataset.cig); setViewerMode("cgi"); openDrawer(c.id); openViewer(c, "ig"); return; }
+  const tb = e.target.closest("[data-ctier]");
+  if (tb) {
+    must(await sb.from("companies").update({ cgi_tier: tb.dataset.ctier }).eq("id", +tb.dataset.id));
+    toast(tb.dataset.ctier === "confirmado" ? "Confirmado como estudio CGI" : "Descartado");
+    loadCgi(true); loadCgiStats(); return;
+  }
+  const card = e.target.closest("[data-cid]");
+  if (card) { setViewerMode("cgi"); openDrawer(+card.dataset.cid); }
+});
+$("#c-review").onclick = () => {
+  const C = state.cgi;
+  if (!C.items.length) return toast("No hay estudios con este filtro");
+  setViewerMode("cgi"); openDrawer(C.items[0].id); openViewer(C.items[0], "ig");
+};
+$("#c-bulkbar").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-cbulk]"); if (!b) return;
+  const ids = [...state.cgi.sel], act = b.dataset.cbulk;
+  try {
+    if (act === "clear") state.cgi.sel.clear();
+    if (act === "confirm" || act === "discard") {
+      must(await sb.from("companies").update({ cgi_tier: act === "confirm" ? "confirmado" : "descartado_manual" }).in("id", ids));
+      state.cgi.sel.clear(); toast(act === "confirm" ? `${ids.length} confirmados` : `${ids.length} descartados`); loadCgiStats();
+    }
+    if (act === "send") {
+      if (!confirm(`¿Enviar el primer correo a ${ids.length} estudios? Solo a los que tengan email y no hayas contactado, respetando tu límite diario.`)) return;
+      await queueJob("send", `Envío a ${ids.length} estudios CGI`, { ids, kind: "first" });
+    }
+    if (act === "refresh") await queueJob("cgi_refresh", `Actualizar ${ids.length} estudios CGI`, { ids });
+    loadCgi(true);
+  } catch (err) { toast(err.message); }
+});
+function cgiEvidenceHtml(c) {
+  const ev = c.cgi_evidence || {}, p = ev.parts || {};
+  const part = (k, label) => p[k] == null ? "" : `<div><span>${label}</span> ${p[k]}</div>`;
+  return `<div class="cgi-ev">
+    <div class="row" style="margin:0;justify-content:space-between"><b>Verificación CGI · ${c.cgi_score ?? 0} pts</b><span class="tier ${esc(c.cgi_tier || "")}">${TIER_LABEL[c.cgi_tier] || "—"}</span></div>
+    <div class="cc-stats" style="margin-top:6px"><span><b>${fmtNum(c.ig_followers)}</b> seguidores</span><span><b>${fmtNum(c.ig_posts)}</b> posts</span><span>último post ${ago(c.ig_last_post)}</span>${c.ig_category ? `<span>${esc(c.ig_category)}</span>` : ""}</div>
+    <div class="parts">${part("cgi", "CGI")}${part("estudio", "Estudio")}${part("clientes", "Clientes")}${part("tamaño", "Tamaño")}${part("red", "Red")}${part("resta", "Resta")}</div>
+    <div class="cc-chips" style="margin-top:8px">${(ev.cgi || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}${(ev.clients || []).map((t) => `<span class="tag client">${esc(t)}</span>`).join("")}${(ev.neg || []).map((t) => `<span class="tag neg">${esc(t)}</span>`).join("")}</div>
+    ${(ev.notes || []).length ? `<p class="hint" style="margin:6px 0 0">${ev.notes.map(esc).join(" · ")}</p>` : ""}
+    <div class="row" style="margin:10px 0 0">
+      <button class="primary" data-tier-set="confirmado">✓ Es un estudio como los que busco</button>
+      <button data-tier-set="descartado_manual">✗ Descartar</button>
+    </div></div>`;
+}
+
+// search panel
+function buildCgiPanel() {
+  $("#cp-terms").innerHTML = CGI_TERMS.map((t) => `<label><input type="checkbox" value="${esc(t)}"> ${esc(t)}</label>`).join("");
+  const upd = () => {
+    const terms = $$("#cp-terms input:checked").length;
+    $("#cp-cost").textContent = `Leerá como máximo ${(+$("#cp-budget").value).toLocaleString("es-ES")} perfiles${terms ? ` (incluidas ${terms} búsquedas en Instagram)` : ""}.`;
+  };
+  ["#cp-budget", "#cp-terms"].forEach((id) => $(id).addEventListener("change", upd)); upd();
+}
+function renderCgiPanelInfo() {
+  const s = state.cgiStats || {};
+  const used = s.apify?.results || 0, cap = s.apify_cap || 1800;
+  $("#cp-apify").innerHTML = state.settings.apify_configured === false
+    ? `Apify aún no está conectado. Añade el secreto <code>APIFY_TOKEN</code> en GitHub (mira la guía) y vuelve aquí.`
+    : `Instagram vía Apify: <b>${used.toLocaleString("es-ES")}</b> de ${Number(cap).toLocaleString("es-ES")} perfiles gratis usados este mes.<br><span class="hint">Se consultan solo perfiles públicos desde los servidores de Apify: tu cuenta de Instagram nunca interviene.</span>`;
+  if (!$("#cp-seeds").value) $("#cp-seeds").value = (s.seeds || DEFAULT_SEEDS).map((x) => "@" + x).join("\n");
+  const miss = s.seeds_missing || [];
+  $("#cp-missing").textContent = miss.length ? `No encontrados en Instagram: ${miss.map((m) => "@" + m).join(", ")}. Corrige el @ o bórralos.` : "";
+}
+function renderCgiJob() {
+  const j = state.jobs.find((x) => x.kind && x.kind.startsWith("cgi"));
+  if (!j) return ($("#cp-job").innerHTML = "");
+  const pct = j.total ? Math.round((j.done / j.total) * 100) : (j.status === "running" ? 3 : 100);
+  const st = { queued: "arrancando…", running: "en marcha", done: "terminada", error: "error", cancelled: "cancelada" }[j.status] || j.status;
+  $("#cp-job").innerHTML = `<div class="job"><header><b>${esc(j.label)}</b><span class="st">${st}</span></header>
+    <div class="prog"><i style="width:${pct}%"></i></div><div class="st">${j.phase ? esc(j.phase) : ""}</div>
+    <pre>${esc((j.logs || []).slice(-8).join("\n"))}</pre></div>`;
+}
+const openCgiPanel = () => { $("#cgi-panel").hidden = false; renderCgiPanelInfo(); renderCgiJob(); };
+$("#c-find").onclick = openCgiPanel;
+$("#c-empty-find").onclick = openCgiPanel;
+$("#cp-close").onclick = () => ($("#cgi-panel").hidden = true);
+$("#cp-start").onclick = async () => {
+  const seeds = $("#cp-seeds").value.split(/[\s,]+/).map((x) => x.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/.*$/, "").toLowerCase()).filter(Boolean);
+  if (!seeds.length) return toast("Añade al menos un estudio de referencia");
+  const params = { seeds: [...new Set(seeds)], rounds: +$("#cp-rounds").value, budget: +$("#cp-budget").value,
+    terms: $$("#cp-terms input:checked").map((i) => i.value), per_term: 25, web: $("#cp-web").checked, websites: $("#cp-sites").checked };
+  try {
+    const row = await queueJob("cgi_discover", "Buscar estudios CGI", params);
+    state.jobs.unshift(row); renderCgiJob();
+  } catch (e) { toast(e.message); }
 };
 
 // ------------------------------------------------------------------ map
@@ -453,6 +659,7 @@ function show(view) {
   $$(".view").forEach((v) => v.classList.toggle("on", v.id === `view-${view}`));
   document.body.dataset.view = view;
   if (view === "map") loadMap();
+  if (view === "cgi") { loadCgi(true); loadCgiStats(); }
   if (view === "mail") loadMail();
   if (view === "search") loadJobs();
 }
@@ -590,7 +797,11 @@ function subscribeJobs() {
     const i = state.jobs.findIndex((x) => x.id === row.id);
     if (i >= 0) state.jobs[i] = row; else state.jobs.unshift(row);
     if (state.view === "search") renderJobs();
-    if (["done", "cancelled", "error"].includes(row.status)) { loadStats(); loadList(true); }
+    if (row.kind && row.kind.startsWith("cgi")) renderCgiJob();
+    if (["done", "cancelled", "error"].includes(row.status)) {
+      loadStats(); loadList(true);
+      if (row.kind && row.kind.startsWith("cgi")) { loadCgi(true); loadCgiStats(); }
+    }
   }).subscribe();
 }
 
@@ -650,8 +861,10 @@ async function init() {
   $("#bulk-status").innerHTML += STATUSES.map((s) => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join("");
   buildSearchUI();
   $$("#filters input, #filters select").forEach((el) => el.addEventListener(el.type === "search" ? "input" : "change", onFilter));
-  document.body.dataset.view = "list";
-  await Promise.all([loadList(true), loadSettings(), loadJobs()]);
+  document.body.dataset.view = "cgi";
+  $("#c-status").innerHTML += STATUSES.map((s) => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join("");
+  buildCgiPanel();
+  await Promise.all([loadList(true), loadSettings(), loadJobs(), loadCgi(true), loadCgiStats()]);
   subscribeJobs();
 }
 

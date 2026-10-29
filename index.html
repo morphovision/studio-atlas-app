@@ -41,7 +41,8 @@
 <header class="top">
   <div class="brand">Studio&nbsp;Atlas</div>
   <nav id="nav">
-    <button data-view="list" class="on"><span class="ico">☰</span><span>Empresas</span></button>
+    <button data-view="cgi" class="on"><span class="ico">✦</span><span>Estudios CGI</span></button>
+    <button data-view="list"><span class="ico">☰</span><span>Empresas</span></button>
     <button data-view="map"><span class="ico">◍</span><span>Mapa</span></button>
     <button data-view="search"><span class="ico">⌕</span><span>Buscar</span></button>
     <button data-view="mail"><span class="ico">✉</span><span>Correo</span></button>
@@ -66,6 +67,11 @@
   <label class="chk"><input type="checkbox" id="f-email"> Con email</label>
   <label class="chk"><input type="checkbox" id="f-freelance"> Acepta freelance</label>
   <label class="chk"><input type="checkbox" id="f-fav"> Favoritas</label>
+  <select id="f-segment">
+    <option value="">Todas las empresas</option>
+    <option value="cgi">Solo estudios CGI</option>
+    <option value="general">Sin estudios CGI</option>
+  </select>
   <select id="f-sort">
     <option value="fit">Orden: encaje</option>
     <option value="freelance">Orden: freelance</option>
@@ -77,7 +83,58 @@
 </section>
 
 <main>
-  <section class="view on" id="view-list">
+  <section class="view on" id="view-cgi">
+    <div class="cgi-head">
+      <div>
+        <h2>Estudios CGI</h2>
+        <p class="hint">Estudios boutique de CGI, diseño y dirección de todo el mundo. Encontrados y verificados por Instagram; tú das la confirmación final.</p>
+      </div>
+      <div class="cgi-kpis" id="cgi-kpis"></div>
+    </div>
+    <div class="cgi-bar">
+      <input id="c-q" type="search" placeholder="Buscar estudio, @usuario, ciudad…">
+      <select id="c-tier">
+        <option value="semilla,confirmado,auto">Verificados</option>
+        <option value="revisar">Para revisar</option>
+        <option value="semilla,confirmado">Confirmados por mí</option>
+        <option value="semilla,confirmado,auto,revisar">Todos los útiles</option>
+        <option value="descartado,descartado_manual">Descartados</option>
+      </select>
+      <select id="c-country"><option value="">Todo el mundo</option></select>
+      <select id="c-followers">
+        <option value="">Cualquier tamaño</option>
+        <option value="2000">+2.000 seguidores</option>
+        <option value="5000">+5.000</option>
+        <option value="10000">+10.000</option>
+        <option value="50000">+50.000</option>
+      </select>
+      <select id="c-status"><option value="">Cualquier estado</option></select>
+      <select id="c-sort">
+        <option value="cgi">Orden: puntuación</option>
+        <option value="followers">Orden: seguidores</option>
+        <option value="recent">Orden: recientes</option>
+      </select>
+      <span class="grow"></span>
+      <button id="c-review">Revisar uno a uno</button>
+      <button class="primary" id="c-find">Buscar más estudios</button>
+    </div>
+    <div class="bulkbar" id="c-bulkbar">
+      <span id="c-sel-count">0 seleccionados</span>
+      <button data-cbulk="confirm">✓ Confirmar</button>
+      <button data-cbulk="discard">✗ Descartar</button>
+      <button data-cbulk="send" class="primary">Enviar correo</button>
+      <button data-cbulk="refresh">Actualizar datos</button>
+      <button data-cbulk="clear" class="ghost">Quitar selección</button>
+    </div>
+    <div class="cgi-grid" id="cgi-grid"></div>
+    <div class="empty" id="c-empty" hidden>
+      <p id="c-empty-msg">Aún no hay estudios.</p>
+      <button class="primary" id="c-empty-find">Buscar estudios</button>
+    </div>
+    <div class="more"><span id="c-count"></span> <button id="c-more">Cargar más</button></div>
+  </section>
+
+  <section class="view" id="view-list">
     <div class="bulkbar" id="bulkbar">
       <span id="sel-count">0 seleccionadas</span>
       <button data-bulk="verify">Verificar</button>
@@ -206,6 +263,32 @@
   </section>
 </main>
 </div>
+
+<aside class="cgi-panel" id="cgi-panel" hidden>
+  <header><h2>Buscar estudios CGI</h2><button class="ghost close" id="cp-close" aria-label="Cerrar">×</button></header>
+  <div class="cp-body">
+    <div class="card" id="cp-apify"></div>
+    <h3>Estudios de referencia</h3>
+    <p class="hint">Un @usuario de Instagram por línea. Son el punto de partida: buscamos los perfiles que Instagram relaciona con ellos, y luego los relacionados de cada estudio verificado.</p>
+    <textarea id="cp-seeds" rows="8" spellcheck="false"></textarea>
+    <p class="hint warn" id="cp-missing"></p>
+    <div class="grid2">
+      <label>Rondas de relacionados
+        <select id="cp-rounds"><option value="1">1 (rápido)</option><option value="2" selected>2</option><option value="3">3 (más amplio)</option></select>
+      </label>
+      <label>Perfiles de Instagram a leer como máximo
+        <select id="cp-budget"><option value="100">100</option><option value="300" selected>300</option><option value="600">600</option><option value="1000">1.000</option></select>
+      </label>
+    </div>
+    <h3>Buscar también dentro de Instagram</h3>
+    <p class="hint">Cada término lee hasta 25 perfiles del buscador de Instagram. Encuentra estudios que no están conectados con tus referencias.</p>
+    <div class="chips" id="cp-terms"></div>
+    <label class="chk"><input type="checkbox" id="cp-web" checked> Buscar también perfiles en la web (gratis)</label>
+    <label class="chk"><input type="checkbox" id="cp-sites" checked> Leer sus webs para sacar emails y más pruebas (gratis)</label>
+    <div class="row"><button class="primary" id="cp-start">Buscar</button><span class="hint" id="cp-cost"></span></div>
+    <div id="cp-job"></div>
+  </div>
+</aside>
 
 <section class="viewer" id="viewer" hidden>
   <div class="vbar">
