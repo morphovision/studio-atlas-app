@@ -108,6 +108,10 @@
         <option value="10000">+10.000</option>
         <option value="50000">+50.000</option>
       </select>
+      <select id="c-mv">
+        <option value="">Cualquier especialidad</option>
+        <option value="1">Videoclips</option>
+      </select>
       <select id="c-status"><option value="">Cualquier estado</option></select>
       <select id="c-sort">
         <option value="cgi">Orden: puntuación</option>
@@ -280,6 +284,10 @@
         <select id="cp-budget"><option value="100">100</option><option value="300" selected>300</option><option value="600">600</option><option value="1000">1.000</option></select>
       </label>
     </div>
+    <h3>Buscar parecidos a…</h3>
+    <p class="hint">Opcional. Si pones aquí uno o varios @, la búsqueda se centra en estudios parecidos a esos (sus relacionados y los relacionados de los parecidos que encuentre).</p>
+    <input id="cp-similar" placeholder="@sideeye.mov, @otro.estudio">
+    <label class="chk"><input type="checkbox" id="cp-mv"> Enfocar en estudios de videoclips (VFX para artistas)</label>
     <h3>Buscar también dentro de Instagram</h3>
     <p class="hint">Cada término lee hasta 25 perfiles del buscador de Instagram. Encuentra estudios que no están conectados con tus referencias.</p>
     <div class="chips" id="cp-terms"></div>
