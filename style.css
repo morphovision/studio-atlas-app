@@ -363,3 +363,15 @@ h3 { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacin
   body[data-view="cgi"] .filters, body[data-view="cgi"] .filters-toggle { display: none !important; }
 }
 body[data-view="cgi"] .filters { display: none; }
+
+/* phones: hide the top bar and the filters while scrolling down; on the way back up only the search box returns */
+@media (max-width: 760px) {
+  .top { max-height: 90px; transition: max-height .22s ease, padding .22s ease; overflow: hidden; }
+  body.chrome-hidden .top { max-height: 0; padding-top: 0; padding-bottom: 0; border-bottom-width: 0; }
+  .cgi-bar { transition: transform .22s ease; }
+  body.chrome-hidden .cgi-bar { transform: translateY(-110%); pointer-events: none; }
+  body.scrolled .cgi-bar > :not(#c-q) { display: none; }
+  body.scrolled .cgi-bar { padding-bottom: 8px; }
+  body.chrome-hidden #c-bulkbar { top: 0; }
+  body.chrome-hidden .filters { display: none !important; }
+}

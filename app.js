@@ -672,6 +672,7 @@ applyTheme(document.documentElement.dataset.theme || "");
 // ------------------------------------------------------------------ views
 function show(view) {
   state.view = view;
+  document.body.classList.remove("chrome-hidden", "scrolled");
   $$("#nav button").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
   $$(".view").forEach((v) => v.classList.toggle("on", v.id === `view-${view}`));
   document.body.dataset.view = view;
@@ -683,6 +684,22 @@ function show(view) {
 $$("#nav button").forEach((b) => b.onclick = () => show(b.dataset.view));
 document.addEventListener("click", (e) => { const g = e.target.closest("[data-goto]"); if (g) show(g.dataset.goto); });
 $("#filters-toggle").onclick = () => document.body.classList.toggle("show-filters");
+
+// phones: scrolling down hides the top bar and filters to leave room for the list; scrolling up brings them back
+(() => {
+  let lastY = 0, acc = 0;
+  document.addEventListener("scroll", (e) => {
+    const el = e.target;
+    if (!mobile() || !(el instanceof HTMLElement) || !el.classList.contains("view")) return;
+    const y = el.scrollTop, dy = y - lastY;
+    lastY = y;
+    acc = Math.sign(dy) === Math.sign(acc) ? acc + dy : dy;
+    document.body.classList.toggle("scrolled", y >= 40);
+    if (y < 40) document.body.classList.remove("chrome-hidden");
+    else if (acc > 24) document.body.classList.add("chrome-hidden");
+    else if (acc < -24) document.body.classList.remove("chrome-hidden");
+  }, { capture: true, passive: true });
+})();
 
 // ------------------------------------------------------------------ search & jobs
 function buildSearchUI() {
@@ -802,8 +819,11 @@ $("#jobs-clear").onclick = async () => {
   must(await sb.from("jobs").delete().in("status", ["done", "error", "cancelled"]));
   loadJobs(); toast("Tareas borradas");
 };
+let jobsChannel = null;
 function subscribeJobs() {
-  sb.channel("jobs").on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, (p) => {
+  if (jobsChannel) return;
+  jobsChannel = sb.channel("jobs-" + Math.random().toString(36).slice(2));
+  jobsChannel.on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, (p) => {
     if (p.eventType === "DELETE") {
       state.jobs = state.jobs.filter((x) => x.id !== p.old?.id);
       if (state.view === "search") renderJobs();
@@ -868,11 +888,14 @@ async function loadStats() {
   $("#storage-hint").textContent = `Tienes ${n(s.total)} empresas guardadas. El plan gratuito admite unas 400.000; busca por regiones si quieres afinar.`;
 }
 
-let inited = false;
-async function init() {
-  if (inited) return;
+// boot() and the sign-in event can both call init() at the same time: run it only once
+let initP = null;
+function init() {
+  initP ||= doInit().catch((e) => { initP = null; throw e; });
+  return initP;
+}
+async function doInit() {
   await loadStats();          // throws "no autorizado" for strangers
-  inited = true;
   $("#f-category").innerHTML += Object.entries(CAT_SHORT).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
   $("#f-status").innerHTML += STATUSES.map((s) => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join("");
   $("#bulk-status").innerHTML += STATUSES.map((s) => `<option value="${s}">${STATUS_LABEL[s]}</option>`).join("");
