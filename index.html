@@ -42,6 +42,7 @@
   <div class="brand">Studio&nbsp;Atlas</div>
   <nav id="nav">
     <button data-view="cgi" class="on"><span class="ico">✦</span><span>Estudios CGI</span></button>
+    <button data-view="club"><span class="ico">♫</span><span>Discotecas</span></button>
     <button data-view="list"><span class="ico">☰</span><span>Empresas</span></button>
     <button data-view="map"><span class="ico">◍</span><span>Mapa</span></button>
     <button data-view="search"><span class="ico">⌕</span><span>Buscar</span></button>
@@ -70,6 +71,7 @@
   <select id="f-segment">
     <option value="">Todas las empresas</option>
     <option value="cgi">Solo estudios CGI</option>
+    <option value="club">Solo discotecas techno</option>
     <option value="general">Sin estudios CGI</option>
   </select>
   <select id="f-sort">
@@ -86,8 +88,8 @@
   <section class="view on" id="view-cgi">
     <div class="cgi-head">
       <div>
-        <h2>Estudios CGI</h2>
-        <p class="hint">Estudios boutique de CGI, diseño y dirección de todo el mundo. Encontrados y verificados por Instagram; tú das la confirmación final.</p>
+        <h2 id="cgi-title">Estudios CGI</h2>
+        <p class="hint" id="cgi-hint">Estudios boutique de CGI, diseño y dirección de todo el mundo. Encontrados y verificados por Instagram; tú das la confirmación final.</p>
       </div>
       <div class="cgi-kpis" id="cgi-kpis"></div>
     </div>
@@ -269,11 +271,11 @@
 </div>
 
 <aside class="cgi-panel" id="cgi-panel" hidden>
-  <header><h2>Buscar estudios CGI</h2><button class="ghost close" id="cp-close" aria-label="Cerrar">×</button></header>
+  <header><h2 id="cp-title">Buscar estudios CGI</h2><button class="ghost close" id="cp-close" aria-label="Cerrar">×</button></header>
   <div class="cp-body">
     <div class="card" id="cp-apify"></div>
-    <h3>Estudios de referencia</h3>
-    <p class="hint">Un @usuario de Instagram por línea. Son el punto de partida: buscamos los perfiles que Instagram relaciona con ellos, y luego los relacionados de cada estudio verificado.</p>
+    <h3 id="cp-seeds-h">Estudios de referencia</h3>
+    <p class="hint" id="cp-seeds-p">Un @usuario de Instagram por línea. Son el punto de partida: buscamos los perfiles que Instagram relaciona con ellos, y luego los relacionados de cada estudio verificado.</p>
     <textarea id="cp-seeds" rows="8" spellcheck="false"></textarea>
     <p class="hint warn" id="cp-missing"></p>
     <div class="grid2">
@@ -287,7 +289,12 @@
     <h3>Buscar parecidos a…</h3>
     <p class="hint">Opcional. Si pones aquí uno o varios @, la búsqueda se centra en estudios parecidos a esos (sus relacionados y los relacionados de los parecidos que encuentre).</p>
     <input id="cp-similar" placeholder="@sideeye.mov, @otro.estudio">
-    <label class="chk"><input type="checkbox" id="cp-mv"> Enfocar en estudios de videoclips (VFX para artistas)</label>
+    <label class="chk" id="cp-mv-l"><input type="checkbox" id="cp-mv"> Enfocar en estudios de videoclips (VFX para artistas)</label>
+    <div id="cp-regions-wrap" hidden>
+      <h3>Buscar por zonas del mundo</h3>
+      <p class="hint">Busca «techno club + ciudad» en Instagram para cada ciudad de las zonas marcadas (unos 10 perfiles por ciudad). Más zonas, más perfiles leídos: sube el máximo de arriba si quieres cubrirlas todas.</p>
+      <div class="chips" id="cp-regions"></div>
+    </div>
     <h3>Buscar también dentro de Instagram</h3>
     <p class="hint">Cada término lee hasta 25 perfiles del buscador de Instagram. Encuentra estudios que no están conectados con tus referencias.</p>
     <div class="chips" id="cp-terms"></div>

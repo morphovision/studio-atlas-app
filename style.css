@@ -214,7 +214,7 @@ h3 { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacin
   .filters-toggle { display: inline-flex; margin-left: auto; }
   .top nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 900; background: var(--panel); border-top: 1px solid var(--line);
              padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); justify-content: space-around; gap: 0; }
-  .top nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; padding: 6px 0; }
+  .top nav button { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; padding: 6px 0; white-space: nowrap; }
   .top nav .ico { font-size: 18px; line-height: 1; }
   .filters { display: none; padding: 10px 16px; }
   body.show-filters .filters { display: flex; }

@@ -9,7 +9,7 @@ const mobile = () => matchMedia("(max-width: 760px)").matches;
 const STATUSES = ["por_contactar", "enviado", "sin_respuesta", "respondido", "descartado", "no_contactar"];
 const STATUS_LABEL = { por_contactar: "Por contactar", enviado: "Enviado", sin_respuesta: "Sin respuesta", respondido: "Respondido", descartado: "Descartado", no_contactar: "No contactar" };
 const ALIVE_LABEL = { activa: "Activa", dudosa: "Dudosa", inactiva: "Inactiva", sin_comprobar: "Sin comprobar" };
-const CAT_SHORT = { vfx: "VFX", motion: "Motion / 3D", design: "Diseño", advertising: "Publicidad", production: "Productora", marketing: "Marketing", web: "Diseño web", other: "Otro" };
+const CAT_SHORT = { vfx: "VFX", motion: "Motion / 3D", design: "Diseño", advertising: "Publicidad", production: "Productora", marketing: "Marketing", web: "Diseño web", nightlife: "Discoteca / techno", other: "Otro" };
 const CAT_LONG = { vfx: "VFX", motion: "Motion / 3D / Animación", design: "Diseño gráfico / Branding", advertising: "Publicidad / Agencia creativa", production: "Productora / Postproducción", marketing: "Marketing", web: "Diseño web" };
 const REGIONS = {
   "Iberia": ["ES", "PT"],
@@ -21,13 +21,13 @@ const REGIONS = {
 };
 const SPANISH = new Set(["ES", "MX", "CO", "AR", "CL", "PE", "UY", "EC", "VE", "BO", "PY", "CR", "PA", "GT", "DO", "SV", "HN", "NI", "CU"]);
 const CATEGORY_WORDS = {
-  es: { vfx: "efectos visuales", motion: "motion y 3D", design: "diseño", advertising: "publicidad", production: "producción", marketing: "marketing", web: "diseño web", other: "creatividad" },
-  en: { vfx: "visual effects", motion: "motion and 3D", design: "design", advertising: "advertising", production: "production", marketing: "marketing", web: "web design", other: "creative work" },
+  es: { nightlife: "música electrónica", vfx: "efectos visuales", motion: "motion y 3D", design: "diseño", advertising: "publicidad", production: "producción", marketing: "marketing", web: "diseño web", other: "creatividad" },
+  en: { nightlife: "electronic music", vfx: "visual effects", motion: "motion and 3D", design: "design", advertising: "advertising", production: "production", marketing: "marketing", web: "web design", other: "creative work" },
 };
 const REGION_NAMES = (() => { try { return new Intl.DisplayNames(["es"], { type: "region" }); } catch { return null; } })();
 const countryName = (cc, fallback) => { try { return (cc && REGION_NAMES && REGION_NAMES.of(cc)) || fallback || cc || ""; } catch { return fallback || cc || ""; } };
 const state = { items: [], total: 0, offset: 0, sel: new Set(), settings: {}, tpl: "template_es", view: "cgi", jobs: [],
-  cgi: { items: [], total: 0, offset: 0, sel: new Set() }, vsrc: "list" };
+  cgi: { items: [], total: 0, offset: 0, sel: new Set() }, vsrc: "list", seg: "cgi" };
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const dot = (kind, v) => `<span class="dot" style="background:var(--${kind}-${v})"></span>`;
 const fmtDate = (s) => s ? new Date(s).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "2-digit" }) : "—";
@@ -197,7 +197,7 @@ async function openDrawer(id) {
       ${c.instagram ? `<button data-view-open="ig">Ver Instagram aquí</button>` : ""}
     </div>
     <div class="links">${links.map(([l, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener">${l} ↗</a>`).join("")}</div>
-    ${c.segment === "cgi" ? cgiEvidenceHtml(c) : ""}
+    ${isSeg(c.segment) ? cgiEvidenceHtml(c) : ""}
     ${c.description ? `<p class="desc">${esc(c.description)}</p>` : ""}
     <div>${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
     <div class="scores">
@@ -227,10 +227,10 @@ async function openDrawer(id) {
   $$("[data-sim-drawer]").forEach((b) => b.onclick = () => findSimilar([b.dataset.simDrawer]));
   $$("[data-tier-set]").forEach((b) => b.onclick = async () => {
     must(await sb.from("companies").update({ cgi_tier: b.dataset.tierSet }).eq("id", c.id));
-    toast(b.dataset.tierSet === "confirmado" ? "Confirmado como estudio CGI" : "Descartado");
+    toast(b.dataset.tierSet === "confirmado" ? SEG(c.segment).ok : "Descartado");
     loadCgi(true); loadCgiStats(); openDrawer(c.id);
   });
-  $$("[data-view-open]").forEach((b) => b.onclick = () => { setViewerMode(c.segment === "cgi" && state.view === "cgi" ? "cgi" : "list"); openViewer(c, b.dataset.viewOpen); });
+  $$("[data-view-open]").forEach((b) => b.onclick = () => { setViewerMode(c.segment === state.seg && state.view === "cgi" ? "cgi" : "list"); openViewer(c, b.dataset.viewOpen); });
   if (!$("#viewer").hidden) openViewer(c, viewerTab(c));
   const save = async (fields) => { must(await sb.from("companies").update(fields).eq("id", id)); loadList(true); loadStats(); };
   $("#d-status").onchange = (e) => save({ status: e.target.value }).then(() => toast("Estado guardado"));
@@ -270,7 +270,7 @@ function setViewerMode(src) {
   state.vsrc = src;
   const cgi = src === "cgi";
   $("#v-alive").textContent = cgi ? "✓ Confirmar" : "✓ Activa";
-  $("#v-alive").title = cgi ? "Es un estudio CGI como los que busco (A)" : "Marcar activa (A)";
+  $("#v-alive").title = cgi ? SEG().okTitle : "Marcar activa (A)";
   $("#v-dead").textContent = cgi ? "✗ Descartar" : "✗ Inactiva";
   $("#v-dead").title = cgi ? "No encaja (I)" : "Marcar inactiva (I)";
 }
@@ -329,7 +329,7 @@ async function stepViewer(dir, fromIndex) {
   let i = (fromIndex ?? L.items.findIndex((x) => x.id === state.vc?.id)) + dir;
   if (i >= L.items.length && L.items.length < L.total) await (state.vsrc === "cgi" ? loadCgi(false) : loadList(false));
   if (i < 0 || i >= L.items.length) {
-    if (state.vsrc === "cgi" && !L.items.length) { closeViewer(); closeDrawer(); return toast("Revisión terminada: no quedan estudios con este filtro"); }
+    if (state.vsrc === "cgi" && !L.items.length) { closeViewer(); closeDrawer(); return toast(`Revisión terminada: no quedan ${SEG().many} con este filtro`); }
     return toast(dir > 0 ? "No hay más con este filtro" : "Es la primera");
   }
   openDrawer(L.items[i].id);   // the drawer refreshes the open viewer with the full record
@@ -353,7 +353,7 @@ async function markViewer(fields, msg) {
 $("#v-prev").onclick = () => stepViewer(-1);
 $("#v-next").onclick = () => stepViewer(1);
 $("#v-alive").onclick = () => state.vsrc === "cgi"
-  ? markViewer({ cgi_tier: "confirmado" }, "Confirmado como estudio CGI")
+  ? markViewer({ cgi_tier: "confirmado" }, SEG().ok)
   : markViewer({ alive_status: "activa", alive_notes: "Revisada a mano: activa" }, "Marcada como activa");
 $("#v-dead").onclick = () => state.vsrc === "cgi"
   ? markViewer({ cgi_tier: "descartado_manual" }, "Descartado")
@@ -401,18 +401,38 @@ const CGI_TERMS = ["cgi studio", "3d studio", "creative studio cgi", "design and
   "vfx studio", "3d design studio", "cgi agency", "visual studio 3d", "cgi music video", "creative studio", "motion and cgi studio", "cgi production studio"];
 const DEFAULT_SEEDS = ["sideeye.mov", "onesal_studio", "loop_creative_studio", "studiotendril", "someform.studio", "bureauklausalman",
   "notreal.tv", "fluentstudio", "zunc.studio", "erase_studio_", "here.creative", "reframe_studio_kr"];
+const CLUB_SEEDS = ["prismbcn", "tresorberlin", "fabriclondon", "rexclub", "dc10ibiza", "bassiani_", "subclubglasgow", "awakenings", "dekmantel", "elsewherebrooklyn"];
+const CLUB_TERMS = ["techno club", "techno nightclub", "underground club techno", "warehouse techno club", "electronic music club", "club techno events", "rave club", "hard techno club"];
+const CLUB_REGIONS = { europa: "Europa", usa: "Estados Unidos", asia: "Asia (China, Japón, Corea…)", latam: "Latinoamérica", otros: "Australia, Sudáfrica, Israel" };
+const SEGS = {
+  cgi: { prefix: "cgi", title: "Estudios CGI", hint: "Estudios boutique de CGI, diseño y dirección de todo el mundo. Encontrados y verificados por Instagram; tú das la confirmación final.",
+    ph: "Buscar estudio, @usuario, ciudad…", find: "Buscar más estudios", panel: "Buscar estudios CGI", seedsH: "Estudios de referencia",
+    seedsP: "Un @usuario de Instagram por línea. Son el punto de partida: buscamos los perfiles que Instagram relaciona con ellos, y luego los relacionados de cada estudio verificado.",
+    seeds: DEFAULT_SEEDS, terms: CGI_TERMS, perTerm: 25, one: "estudio", many: "estudios", ok: "Confirmado como estudio CGI", okBtn: "✓ Es un estudio como los que busco",
+    okTitle: "Es un estudio CGI como los que busco (A)", verify: "Verificación CGI", ring: "Puntuación CGI", sim: "Buscar estudios parecidos a este",
+    parts: [["cgi", "CGI"], ["estudio", "Estudio"], ["clientes", "Clientes"], ["tamaño", "Tamaño"], ["red", "Red"], ["resta", "Resta"]], emptyReview: "No hay estudios pendientes de revisar.", emptyAny: "Aún no hay estudios con este filtro." },
+  club: { prefix: "club", title: "Discotecas techno", hint: "Discotecas, festivales y promotoras de techno de todo el mundo con nivel: line-up, entradas en RA/Dice, tamaño y actividad real en Instagram. Tú das la confirmación final.",
+    ph: "Buscar discoteca, @usuario, ciudad…", find: "Buscar más discotecas", panel: "Buscar discotecas techno", seedsH: "Discotecas de referencia",
+    seedsP: "Un @usuario de Instagram por línea. Parte de tus referencias (PRISM, Tresor…) y de los perfiles que Instagram relaciona con ellas, ronda tras ronda.",
+    seeds: CLUB_SEEDS, terms: CLUB_TERMS, perTerm: 10, one: "discoteca", many: "discotecas", ok: "Confirmada como discoteca con nivel", okBtn: "✓ Es una discoteca con nivel",
+    okTitle: "Es una discoteca de techno con nivel (A)", verify: "Verificación techno", ring: "Puntuación techno", sim: "Buscar discotecas parecidas a esta",
+    parts: [["música", "Música"], ["local", "Local"], ["entradas", "Entradas"], ["lineup", "Line-up"], ["tamaño", "Tamaño"], ["red", "Red"], ["resta", "Resta"]], emptyReview: "No hay discotecas pendientes de revisar.", emptyAny: "Aún no hay discotecas con este filtro." },
+};
+const SEG = (k) => SEGS[k || state.seg] || SEGS.cgi;
+const isSeg = (k) => k === "cgi" || k === "club";
 const fmtNum = (n) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(".0", "") + "M" : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(".0", "") + "k" : String(n);
 const ago = (d) => { if (!d) return "—"; const days = Math.round((Date.now() - new Date(d)) / 864e5); return days <= 0 ? "hoy" : days < 31 ? `hace ${days} d` : days < 365 ? `hace ${Math.round(days / 30)} m` : `hace ${Math.round(days / 365)} a`; };
 
 function cgiFilters() {
-  const f = { segment: "cgi", cgi_tier: $("#c-tier").value, q: $("#c-q").value.trim(), country_code: $("#c-country").value,
-    min_followers: $("#c-followers").value, status: $("#c-status").value, sort: $("#c-sort").value, mv: $("#c-mv").value };
+  const f = { segment: state.seg, cgi_tier: $("#c-tier").value, q: $("#c-q").value.trim(), country_code: $("#c-country").value,
+    min_followers: $("#c-followers").value, status: $("#c-status").value, sort: $("#c-sort").value, mv: state.seg === "cgi" ? $("#c-mv").value : "" };
   return Object.fromEntries(Object.entries(f).filter(([, v]) => v !== "" && v != null));
 }
 async function loadCgi(reset) {
-  const C = state.cgi;
+  const C = state.cgi, seg = state.seg;
   if (reset) { C.offset = 0; C.items = []; }
   const data = must(await sb.rpc("atlas_companies", { f: cgiFilters(), lim: 60, off: C.offset }));
+  if (seg !== state.seg) return;      // switched category while loading
   C.total = data.total; C.items = C.items.concat(data.items); C.offset += data.items.length;
   renderCgi();
 }
@@ -430,13 +450,13 @@ function cgiCard(c) {
     <input type="checkbox" class="csel" data-csel="${c.id}" ${sel ? "checked" : ""} aria-label="Seleccionar">
     <div class="cc-top"><div class="avatar">${initial}${pic}</div>
       <div class="cc-name"><b>${esc(c.name)}</b><span class="sub">@${esc(c.ig_username || "")}${where ? " · " + esc(where) : ""}</span></div>
-      <div class="ring" style="--s:${c.cgi_score || 0}" title="Puntuación CGI"><span>${c.cgi_score ?? 0}</span></div></div>
+      <div class="ring" style="--s:${c.cgi_score || 0}" title="${SEG(c.segment).ring}"><span>${c.cgi_score ?? 0}</span></div></div>
     <div class="cc-stats"><span><b>${fmtNum(c.ig_followers)}</b> seguidores</span><span><b>${fmtNum(c.ig_posts)}</b> posts</span><span>${ago(c.ig_last_post)}</span>${c.emails.length ? "<span>✉</span>" : ""}</div>
     <div class="cc-chips">${chips}</div>
     <div class="cc-foot"><span class="tier ${esc(c.cgi_tier || "")}">${TIER_LABEL[c.cgi_tier] || "—"}</span>
       <span class="pill" title="${STATUS_LABEL[c.status] || ""}">${dot("s", c.status)}<span class="st-txt">${STATUS_LABEL[c.status] || ""}</span></span><span class="grow"></span>
       <button data-cig="${c.id}" title="Ver su Instagram aquí">Instagram</button>
-      <button data-csim="${esc(c.ig_username || "")}" title="Buscar estudios parecidos a este">Parecidos</button>
+      <button data-csim="${esc(c.ig_username || "")}" title="${SEG(c.segment).sim}">Parecidos</button>
       ${["semilla", "confirmado"].includes(c.cgi_tier) ? "" : `<button data-ctier="confirmado" data-id="${c.id}" title="Confirmar">✓</button>`}
       ${["descartado", "descartado_manual"].includes(c.cgi_tier) ? "" : `<button data-ctier="descartado_manual" data-id="${c.id}" title="Descartar">✗</button>`}
     </div></article>`;
@@ -445,14 +465,15 @@ function renderCgi() {
   const C = state.cgi;
   $("#cgi-grid").innerHTML = C.items.map(cgiCard).join("");
   $("#c-empty").hidden = C.total > 0;
-  $("#c-empty-msg").textContent = $("#c-tier").value === "revisar" ? "No hay estudios pendientes de revisar." : "Aún no hay estudios con este filtro.";
+  $("#c-empty-msg").textContent = $("#c-tier").value === "revisar" ? SEG().emptyReview : SEG().emptyAny;
   $("#c-count").textContent = C.total ? `${C.items.length} de ${C.total.toLocaleString("es-ES")}` : "";
   $("#c-more").hidden = C.items.length >= C.total;
   $("#c-bulkbar").classList.toggle("on", C.sel.size > 0);
   $("#c-sel-count").textContent = `${C.sel.size} seleccionados`;
 }
 async function loadCgiStats() {
-  const s = must(await sb.rpc("atlas_cgi_stats"));
+  const seg = state.seg, s = must(await sb.rpc("atlas_cgi_stats", { seg }));
+  if (seg !== state.seg) return;
   const t = s.tiers || {};
   const mine = (t.semilla || 0) + (t.confirmado || 0);
   $("#cgi-kpis").innerHTML = `<div><b>${mine}</b><span>Confirmados</span></div><div><b>${t.auto || 0}</b><span>Verificados auto</span></div>
@@ -476,7 +497,7 @@ $("#cgi-grid").addEventListener("click", async (e) => {
   const tb = e.target.closest("[data-ctier]");
   if (tb) {
     must(await sb.from("companies").update({ cgi_tier: tb.dataset.ctier }).eq("id", +tb.dataset.id));
-    toast(tb.dataset.ctier === "confirmado" ? "Confirmado como estudio CGI" : "Descartado");
+    toast(tb.dataset.ctier === "confirmado" ? SEG().ok : "Descartado");
     loadCgi(true); loadCgiStats(); return;
   }
   const card = e.target.closest("[data-cid]");
@@ -484,7 +505,7 @@ $("#cgi-grid").addEventListener("click", async (e) => {
 });
 $("#c-review").onclick = () => {
   const C = state.cgi;
-  if (!C.items.length) return toast("No hay estudios con este filtro");
+  if (!C.items.length) return toast(`No hay ${SEG().many} con este filtro`);
   setViewerMode("cgi"); openDrawer(C.items[0].id); openViewer(C.items[0], "ig");
 };
 $("#c-bulkbar").addEventListener("click", async (e) => {
@@ -497,25 +518,25 @@ $("#c-bulkbar").addEventListener("click", async (e) => {
       state.cgi.sel.clear(); toast(act === "confirm" ? `${ids.length} confirmados` : `${ids.length} descartados`); loadCgiStats();
     }
     if (act === "send") {
-      if (!confirm(`¿Enviar el primer correo a ${ids.length} estudios? Solo a los que tengan email y no hayas contactado, respetando tu límite diario.`)) return;
-      await queueJob("send", `Envío a ${ids.length} estudios CGI`, { ids, kind: "first" });
+      if (!confirm(`¿Enviar el primer correo a ${ids.length} ${SEG().many}? Solo a los que tengan email y no hayas contactado, respetando tu límite diario.`)) return;
+      await queueJob("send", `Envío a ${ids.length} ${SEG().many}`, { ids, kind: "first" });
     }
-    if (act === "refresh") await queueJob("cgi_refresh", `Actualizar ${ids.length} estudios CGI`, { ids });
+    if (act === "refresh") await queueJob(SEG().prefix + "_refresh", `Actualizar ${ids.length} ${SEG().many}`, { ids });
     loadCgi(true);
   } catch (err) { toast(err.message); }
 });
 function cgiEvidenceHtml(c) {
-  const ev = c.cgi_evidence || {}, p = ev.parts || {};
+  const sg = SEG(c.segment), ev = c.cgi_evidence || {}, p = ev.parts || {};
   const part = (k, label) => p[k] == null ? "" : `<div><span>${label}</span> ${p[k]}</div>`;
   return `<div class="cgi-ev">
-    <div class="row" style="margin:0;justify-content:space-between"><b>Verificación CGI · ${c.cgi_score ?? 0} pts</b><span class="tier ${esc(c.cgi_tier || "")}">${TIER_LABEL[c.cgi_tier] || "—"}</span></div>
+    <div class="row" style="margin:0;justify-content:space-between"><b>${sg.verify} · ${c.cgi_score ?? 0} pts</b><span class="tier ${esc(c.cgi_tier || "")}">${TIER_LABEL[c.cgi_tier] || "—"}</span></div>
     <div class="cc-stats" style="margin-top:6px"><span><b>${fmtNum(c.ig_followers)}</b> seguidores</span><span><b>${fmtNum(c.ig_posts)}</b> posts</span><span>último post ${ago(c.ig_last_post)}</span>${c.ig_category ? `<span>${esc(c.ig_category)}</span>` : ""}</div>
-    <div class="parts">${part("cgi", "CGI")}${part("estudio", "Estudio")}${part("clientes", "Clientes")}${part("tamaño", "Tamaño")}${part("red", "Red")}${part("resta", "Resta")}</div>
+    <div class="parts">${sg.parts.map(([k, l]) => part(k, l)).join("")}</div>
     <div class="cc-chips" style="margin-top:8px">${(ev.cgi || []).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}${(ev.clients || []).map((t) => `<span class="tag client">${esc(t)}</span>`).join("")}${(ev.neg || []).map((t) => `<span class="tag neg">${esc(t)}</span>`).join("")}</div>
     ${(ev.notes || []).length ? `<p class="hint" style="margin:6px 0 0">${ev.notes.map(esc).join(" · ")}</p>` : ""}
-    ${(ev.artists || []).length ? `<p class="hint" style="margin:6px 0 0">♪ Artistas: ${ev.artists.map(esc).join(", ")}${ev.mv ? ` · ${ev.mv} publicaciones de videoclips` : ""}</p>` : ev.mv ? `<p class="hint" style="margin:6px 0 0">♪ ${ev.mv} publicaciones de videoclips</p>` : ""}
+    ${(ev.artists || []).length ? `<p class="hint" style="margin:6px 0 0">♪ ${c.segment === "club" ? "Line-up" : "Artistas"}: ${ev.artists.map(esc).join(", ")}${ev.mv ? ` · ${ev.mv} publicaciones de videoclips` : ""}</p>` : ev.mv ? `<p class="hint" style="margin:6px 0 0">♪ ${ev.mv} publicaciones de videoclips</p>` : ""}
     <div class="row" style="margin:10px 0 0">
-      <button class="primary" data-tier-set="confirmado">✓ Es un estudio como los que busco</button>
+      <button class="primary" data-tier-set="confirmado">${sg.okBtn}</button>
       <button data-tier-set="descartado_manual">✗ Descartar</button>
       <button data-sim-drawer="${esc(c.ig_username || "")}">Buscar parecidos</button>
     </div></div>`;
@@ -523,12 +544,19 @@ function cgiEvidenceHtml(c) {
 
 // search panel
 function buildCgiPanel() {
-  $("#cp-terms").innerHTML = CGI_TERMS.map((t) => `<label><input type="checkbox" value="${esc(t)}"> ${esc(t)}</label>`).join("");
+  const sg = SEG();
+  $("#cp-terms").innerHTML = sg.terms.map((t) => `<label><input type="checkbox" value="${esc(t)}"> ${esc(t)}</label>`).join("");
+  $("#cp-regions").innerHTML = Object.entries(CLUB_REGIONS).map(([k, v]) => `<label><input type="checkbox" value="${k}"${k === "europa" || k === "usa" ? " checked" : ""}> ${esc(v)}</label>`).join("");
+  $("#cp-regions-wrap").hidden = state.seg !== "club";
+  $("#cp-mv-l").hidden = state.seg !== "cgi";
+  $("#cp-title").textContent = sg.panel; $("#cp-seeds-h").textContent = sg.seedsH; $("#cp-seeds-p").textContent = sg.seedsP;
+  $("#cp-seeds").value = "";
   const upd = () => {
     const terms = $$("#cp-terms input:checked").length;
-    $("#cp-cost").textContent = `Leerá como máximo ${(+$("#cp-budget").value).toLocaleString("es-ES")} perfiles${terms ? ` (incluidas ${terms} búsquedas en Instagram)` : ""}.`;
+    const regs = state.seg === "club" ? $$("#cp-regions input:checked").length : 0;
+    $("#cp-cost").textContent = `Leerá como máximo ${(+$("#cp-budget").value).toLocaleString("es-ES")} perfiles${terms || regs ? ` (incluidas ${terms} búsquedas en Instagram${regs ? ` y ${regs} zonas del mundo` : ""})` : ""}.`;
   };
-  ["#cp-budget", "#cp-terms"].forEach((id) => $(id).addEventListener("change", upd)); upd();
+  ["#cp-budget", "#cp-terms", "#cp-regions"].forEach((id) => { $(id).onchange = upd; }); upd();
 }
 function renderCgiPanelInfo() {
   const s = state.cgiStats || {};
@@ -536,12 +564,12 @@ function renderCgiPanelInfo() {
   $("#cp-apify").innerHTML = state.settings.apify_configured === false
     ? `Apify aún no está conectado. Añade el secreto <code>APIFY_TOKEN</code> en GitHub (mira la guía) y vuelve aquí.`
     : `Instagram vía Apify: <b>${used.toLocaleString("es-ES")}</b> de ${Number(cap).toLocaleString("es-ES")} perfiles gratis usados este mes.<br><span class="hint">Se consultan solo perfiles públicos desde los servidores de Apify: tu cuenta de Instagram nunca interviene.</span>`;
-  if (!$("#cp-seeds").value) $("#cp-seeds").value = (s.seeds || DEFAULT_SEEDS).map((x) => "@" + x).join("\n");
+  if (!$("#cp-seeds").value) $("#cp-seeds").value = (s.seeds || SEG().seeds).map((x) => "@" + x).join("\n");
   const miss = s.seeds_missing || [];
   $("#cp-missing").textContent = miss.length ? `No encontrados en Instagram: ${miss.map((m) => "@" + m).join(", ")}. Corrige el @ o bórralos.` : "";
 }
 function renderCgiJob() {
-  const j = state.jobs.find((x) => x.kind && x.kind.startsWith("cgi"));
+  const j = state.jobs.find((x) => x.kind && x.kind.startsWith(SEG().prefix + "_"));
   if (!j) return ($("#cp-job").innerHTML = "");
   const pct = j.total ? Math.round((j.done / j.total) * 100) : (j.status === "running" ? 3 : 100);
   const st = { queued: "arrancando…", running: "en marcha", done: "terminada", error: "error", cancelled: "cancelada" }[j.status] || j.status;
@@ -550,10 +578,10 @@ function renderCgiJob() {
     <pre>${esc((j.logs || []).slice(-8).join("\n"))}</pre></div>`;
 }
 async function findSimilar(handles) {
-  const mv = (state.cgi.items.find((x) => handles.includes(x.ig_username))?.cgi_evidence?.mv || 0) > 0;
-  if (!confirm(`¿Buscar estudios parecidos a @${handles.join(", @")}? Leerá hasta 200 perfiles de Instagram${mv ? " y se centrará en estudios de videoclips" : ""}.`)) return;
+  const mv = state.seg === "cgi" && (state.cgi.items.find((x) => handles.includes(x.ig_username))?.cgi_evidence?.mv || 0) > 0;
+  if (!confirm(`¿Buscar ${SEG().many} parecidos a @${handles.join(", @")}? Leerá hasta 200 perfiles de Instagram${mv ? " y se centrará en estudios de videoclips" : ""}.`)) return;
   try {
-    const row = await queueJob("cgi_discover", `Parecidos a @${handles.join(", @")}`, { similar_to: handles, musicvideo: mv, rounds: 2, budget: 200, terms: [], web: false, websites: true });
+    const row = await queueJob(SEG().prefix + "_discover", `Parecidos a @${handles.join(", @")}`, { similar_to: handles, musicvideo: mv, rounds: 2, budget: 200, terms: [], web: false, websites: true });
     state.jobs.unshift(row); renderCgiJob();
   } catch (e) { toast(e.message); }
 }
@@ -566,10 +594,11 @@ $("#cp-start").onclick = async () => {
   if (!seeds.length) return toast("Añade al menos un estudio de referencia");
   const similar = $("#cp-similar").value.split(/[\s,]+/).map((x) => x.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/.*$/, "").toLowerCase()).filter(Boolean);
   const params = { seeds: [...new Set(seeds)], rounds: +$("#cp-rounds").value, budget: +$("#cp-budget").value,
-    similar_to: similar, musicvideo: $("#cp-mv").checked,
-    terms: $$("#cp-terms input:checked").map((i) => i.value), per_term: 25, web: $("#cp-web").checked, websites: $("#cp-sites").checked };
+    similar_to: similar, musicvideo: state.seg === "cgi" && $("#cp-mv").checked,
+    terms: $$("#cp-terms input:checked").map((i) => i.value), per_term: SEG().perTerm, web: $("#cp-web").checked, websites: $("#cp-sites").checked };
+  if (state.seg === "club") params.regions = $$("#cp-regions input:checked").map((i) => i.value);
   try {
-    const row = await queueJob("cgi_discover", "Buscar estudios CGI", params);
+    const row = await queueJob(SEG().prefix + "_discover", SEG().panel, params);
     state.jobs.unshift(row); renderCgiJob();
   } catch (e) { toast(e.message); }
 };
@@ -670,10 +699,24 @@ $("#theme-toggle").onclick = () => {
 applyTheme(document.documentElement.dataset.theme || "");
 
 // ------------------------------------------------------------------ views
+function setSeg(seg) {
+  if (state.seg === seg) return;
+  state.seg = seg;
+  state.cgi = { items: [], total: 0, offset: 0, sel: new Set() };
+  const sg = SEG();
+  $("#cgi-title").textContent = sg.title; $("#cgi-hint").textContent = sg.hint;
+  $("#c-q").placeholder = sg.ph; $("#c-find").textContent = sg.find;
+  $("#c-mv").hidden = seg !== "cgi";
+  $("#c-q").value = ""; $("#c-country").value = "";
+  buildCgiPanel();
+  state.cgiStats = null; renderCgiJob();
+}
 function show(view) {
+  const navKey = view;
+  if (view === "club" || view === "cgi") { setSeg(view); view = "cgi"; }
   state.view = view;
   document.body.classList.remove("chrome-hidden", "scrolled");
-  $$("#nav button").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
+  $$("#nav button").forEach((b) => b.classList.toggle("on", b.dataset.view === navKey));
   $$(".view").forEach((v) => v.classList.toggle("on", v.id === `view-${view}`));
   document.body.dataset.view = view;
   if (view === "map") loadMap();
@@ -834,10 +877,10 @@ function subscribeJobs() {
     const i = state.jobs.findIndex((x) => x.id === row.id);
     if (i >= 0) state.jobs[i] = row; else state.jobs.unshift(row);
     if (state.view === "search") renderJobs();
-    if (row.kind && row.kind.startsWith("cgi")) renderCgiJob();
+    if (/^(cgi|club)_/.test(row.kind || "")) renderCgiJob();
     if (["done", "cancelled", "error"].includes(row.status)) {
       loadStats(); loadList(true);
-      if (row.kind && row.kind.startsWith("cgi")) { loadCgi(true); loadCgiStats(); }
+      if (/^(cgi|club)_/.test(row.kind || "")) { loadCgi(true); loadCgiStats(); }
     }
   }).subscribe();
 }
